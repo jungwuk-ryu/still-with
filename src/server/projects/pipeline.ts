@@ -38,7 +38,7 @@ const IN_FLIGHT_JOB_STATUSES: GenerationJobStatus[] = [
   "retrying",
   "running"
 ];
-export const MAX_BACKGROUND_SPACE_COUNT = 2;
+export const MAX_BACKGROUND_SPACE_COUNT = 1;
 
 export type ExperienceAudioBackfillStatus = "ready" | "queued" | "unavailable";
 

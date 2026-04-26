@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties
+} from "react";
 import type { PetRuntimeState } from "@/types";
 import type {
   ConversationTurnResult,
@@ -35,6 +41,8 @@ export function MemorySpaceClient({ manifest }: MemorySpaceClientProps) {
     manifest.pet.runtimeState
   );
   const [activeMotion, setActiveMotion] = useState<PlannedMotion | null>(null);
+  const motionQueueRef = useRef<PlannedMotion[]>([]);
+  const finalPetStateRef = useRef<PetRuntimeState | null>(null);
   const [switchingSceneClusterId, setSwitchingSceneClusterId] = useState<
     string | null
   >(null);
@@ -103,14 +111,44 @@ export function MemorySpaceClient({ manifest }: MemorySpaceClientProps) {
   ]);
 
   function handleConversationTurn(turn: ConversationTurnResult) {
-    setPetState(turn.petState);
-    setActiveMotion(turn.motion);
+    const queue =
+      Array.isArray(turn.motionQueue) && turn.motionQueue.length > 0
+        ? turn.motionQueue
+        : [turn.motion];
+
+    finalPetStateRef.current = turn.petState;
+    motionQueueRef.current = queue;
+    setActiveMotion(queue[0] ?? null);
+    setPetState(
+      queue[0] ? buildPetStateForMotionStart(turn.petState, queue) : turn.petState
+    );
   }
 
   function handleMotionComplete(sequenceId: string) {
-    setActiveMotion((currentMotion) =>
-      currentMotion?.sequenceId === sequenceId ? null : currentMotion
+    const completedMotion = motionQueueRef.current[0];
+
+    if (!completedMotion || completedMotion.sequenceId !== sequenceId) {
+      return;
+    }
+
+    const remainingQueue = motionQueueRef.current.slice(1);
+    const nextMotion = remainingQueue[0] ?? null;
+
+    motionQueueRef.current = remainingQueue;
+    setActiveMotion(nextMotion);
+    setPetState((currentState) =>
+      buildPetStateAfterMotion({
+        currentState,
+        completedMotion,
+        nextMotion,
+        remainingQueue,
+        finalPetState: finalPetStateRef.current
+      })
     );
+
+    if (!nextMotion) {
+      finalPetStateRef.current = null;
+    }
   }
 
   async function handleSpaceSelect(space: ExperienceSpaceSummary) {
@@ -141,6 +179,8 @@ export function MemorySpaceClient({ manifest }: MemorySpaceClientProps) {
       setSpaces(result.manifest.spaces);
       setPetState(result.manifest.pet.runtimeState);
       setActiveMotion(null);
+      motionQueueRef.current = [];
+      finalPetStateRef.current = null;
     } finally {
       setSwitchingSceneClusterId(null);
     }
@@ -181,6 +221,52 @@ export function MemorySpaceClient({ manifest }: MemorySpaceClientProps) {
       />
     </main>
   );
+}
+
+function buildPetStateForMotionStart(
+  finalPetState: PetRuntimeState,
+  queue: readonly PlannedMotion[]
+): PetRuntimeState {
+  const firstMotion = queue[0];
+
+  if (!firstMotion) {
+    return finalPetState;
+  }
+
+  return {
+    ...finalPetState,
+    currentPose: firstMotion.fromState,
+    targetPose: finalPetState.currentPose,
+    currentClipId: firstMotion.clipId,
+    queuedMotionKeys: queue.map((motion) => motion.motionKey)
+  };
+}
+
+function buildPetStateAfterMotion({
+  currentState,
+  completedMotion,
+  nextMotion,
+  remainingQueue,
+  finalPetState
+}: {
+  currentState: PetRuntimeState;
+  completedMotion: PlannedMotion;
+  nextMotion: PlannedMotion | null;
+  remainingQueue: readonly PlannedMotion[];
+  finalPetState: PetRuntimeState | null;
+}): PetRuntimeState {
+  if (!nextMotion && finalPetState) {
+    return finalPetState;
+  }
+
+  return {
+    ...currentState,
+    currentPose: completedMotion.toState,
+    targetPose: finalPetState?.targetPose ?? currentState.targetPose,
+    currentClipId: nextMotion?.clipId ?? null,
+    queuedMotionKeys: remainingQueue.map((motion) => motion.motionKey),
+    lastUpdatedAt: finalPetState?.lastUpdatedAt ?? currentState.lastUpdatedAt
+  };
 }
 
 function getPossessiveName(displayName: string): string {
@@ -237,7 +323,7 @@ function DreamSpaceSwitcher({
 
 function shouldPollSpaces(spaces: ExperienceSpaceSummary[]): boolean {
   return (
-    spaces.length < 3 ||
+    spaces.length < 2 ||
     spaces.some((space) => !space.active && space.status !== "ready")
   );
 }
