@@ -9,6 +9,7 @@ import {
   type DatabaseClient
 } from "@/server/db";
 import { createSceneClusterRecord } from "@/server/assets/world-assets";
+import { addUploadedImages } from "@/server/projects/repository";
 import {
   listAudioAssetRecords,
   REQUIRED_EXPERIENCE_AUDIO_ASSETS
@@ -98,6 +99,94 @@ describe("handleElevenLabsAudioJob", () => {
     });
   });
 
+  it("uses an image-aware LLM prompt plan before calling ElevenLabs", async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "still-with-audio-"));
+    db = openDatabase(path.join(tmpDir, "test.sqlite"));
+    const storage = new LocalStorageDriver(path.join(tmpDir, "storage"));
+    const { project } = seedAudioProject(db);
+    const image = await storage.putObject({
+      key: `projects/${project.id}/uploads/pet.png`,
+      body: Buffer.from("fake image"),
+      contentType: "image/png"
+    });
+    addUploadedImages(
+      project.id,
+      [
+        {
+          originalUrl: image.url,
+          mimeType: "image/png",
+          uploadOrder: 0
+        }
+      ],
+      db
+    );
+    const prompts: string[] = [];
+    const provider: ElevenLabsProvider = {
+      async composeMusic(input) {
+        prompts.push(input.prompt);
+        return {
+          audio: Buffer.from("music"),
+          contentType: "audio/mpeg",
+          raw: {
+            characterCost: null,
+            songId: "song-1",
+            outputFormat: "mp3_44100_128"
+          }
+        };
+      },
+      async createSoundEffect(input) {
+        prompts.push(input.text);
+        return {
+          audio: Buffer.from("sfx"),
+          contentType: "audio/mpeg",
+          raw: {
+            characterCost: "10",
+            songId: null,
+            outputFormat: "mp3_44100_128"
+          }
+        };
+      }
+    };
+    const job = createGenerationJob(
+      {
+        projectId: project.id,
+        type: "elevenlabs-audio"
+      },
+      db
+    );
+
+    const result = await handleElevenLabsAudioJob(job, {
+      db,
+      storage,
+      provider,
+      promptPlanner: {
+        async planAudioPrompts(input) {
+          expect(input.imageUrls).toContain(image.url);
+          expect(input.petProfile.traitSummary).toContain("white dog");
+
+          return {
+            backgroundMusicPrompt: "llm planned background music",
+            petSoundEffects: {
+              look_at_me: "llm planned look sound",
+              turn_around: "llm planned turn sound",
+              sit: "llm planned sit sound",
+              come_closer: "llm planned step sound"
+            },
+            model: "gpt-5.4",
+            source: "llm"
+          };
+        }
+      }
+    });
+
+    expect(prompts).toContain("llm planned background music");
+    expect(prompts).toContain("llm planned look sound");
+    expect(result).toMatchObject({
+      promptSource: "llm",
+      promptModel: "gpt-5.4"
+    });
+  });
+
   it("records skipped audio assets when ElevenLabs is not configured", async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "still-with-audio-"));
     db = openDatabase(path.join(tmpDir, "test.sqlite"));
@@ -114,7 +203,12 @@ describe("handleElevenLabsAudioJob", () => {
     const result = await handleElevenLabsAudioJob(job, {
       db,
       storage,
-      provider: null
+      provider: null,
+      promptPlanner: {
+        async planAudioPrompts() {
+          throw new Error("prompt planner should not run without ElevenLabs");
+        }
+      }
     });
     const assets = listAudioAssetRecords(project.id, db);
 

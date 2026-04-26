@@ -1,17 +1,20 @@
 import { getElevenLabsApiKey } from "@/lib/env";
 import {
+  type AudioPromptPlan,
+  type AudioPromptPlanner,
   BACKGROUND_MUSIC_ASSET_KEY,
   BACKGROUND_MUSIC_DURATION_MS,
   PET_SOUND_EFFECT_DURATION_SECONDS,
   PET_SOUND_EFFECT_INTENTS,
-  buildBackgroundMusicPrompt,
-  buildPetSoundEffectPrompt,
+  buildFallbackAudioPromptPlan,
+  createAudioPromptPlanner,
   upsertAudioAssetRecord
 } from "@/server/audio";
 import { getSelectedSceneClusterForProject } from "@/server/assets/world-assets";
 import { getDatabase, getProjectRecord, type DatabaseClient } from "@/server/db";
 import { getPetProfileRecord } from "@/server/jobs/pet-analysis/pet-profile-repository";
 import { markProjectReadyIfAssetsComplete, updateProjectToStage } from "@/server/projects/pipeline";
+import { listUploadedImages } from "@/server/projects/repository";
 import { getLoadingStage } from "@/server/projects/stages";
 import {
   createElevenLabsProvider,
@@ -25,6 +28,7 @@ export interface ElevenLabsAudioHandlerDeps {
   db?: DatabaseClient;
   storage?: StorageDriver;
   provider?: ElevenLabsProvider | null;
+  promptPlanner?: AudioPromptPlanner | null;
 }
 
 interface PlannedAudioAsset {
@@ -47,6 +51,9 @@ export async function handleElevenLabsAudioJob(
         : null
       : deps.provider;
   const context = getAudioGenerationContext(job.projectId, db);
+  const promptPlan = provider
+    ? await getAudioPromptPlan(context, { ...deps, storage })
+    : buildFallbackAudioPromptPlan(context);
   const stage = getLoadingStage(5);
 
   updateProjectToStage(
@@ -60,7 +67,7 @@ export async function handleElevenLabsAudioJob(
     db
   );
 
-  const plannedAssets = buildPlannedAudioAssets(context);
+  const plannedAssets = buildPlannedAudioAssets(promptPlan);
 
   if (!provider) {
     for (const asset of plannedAssets) {
@@ -84,6 +91,8 @@ export async function handleElevenLabsAudioJob(
       provider: "elevenlabs",
       status: "skipped",
       reason: "missing-api-key",
+      promptSource: promptPlan.source,
+      promptModel: promptPlan.model,
       assets: plannedAssets.map(({ kind, assetKey }) => ({ kind, assetKey }))
     } as JsonValue;
   }
@@ -190,6 +199,8 @@ export async function handleElevenLabsAudioJob(
   return {
     provider: "elevenlabs",
     status: skippedAssets.length > 0 ? "partial" : "ready",
+    promptSource: promptPlan.source,
+    promptModel: promptPlan.model,
     generatedAssets,
     skippedAssets
   } as JsonValue;
@@ -199,9 +210,11 @@ function getAudioGenerationContext(
   projectId: string,
   db: DatabaseClient
 ): {
+  projectId: string;
   petProfile: PetProfile;
   sceneLabel: string | null;
   spatialPrompt: string | null;
+  imageUrls: string[];
 } {
   const project = getProjectRecord(projectId, db);
 
@@ -216,36 +229,66 @@ function getAudioGenerationContext(
   }
 
   const sceneCluster = getSelectedSceneClusterForProject(projectId, db);
+  const uploadedImageUrls = listUploadedImages(projectId, db).map(
+    (image) => image.originalUrl
+  );
+  const sceneImageUrls = sceneCluster?.seedImageUrls ?? [];
 
   return {
+    projectId,
     petProfile,
     sceneLabel: sceneCluster?.label ?? null,
-    spatialPrompt: sceneCluster?.spatialPrompt ?? null
+    spatialPrompt: sceneCluster?.spatialPrompt ?? null,
+    imageUrls: uniqueStrings([...uploadedImageUrls, ...sceneImageUrls])
   };
 }
 
-function buildPlannedAudioAssets(input: {
-  petProfile: PetProfile;
-  sceneLabel: string | null;
-  spatialPrompt: string | null;
-}): PlannedAudioAsset[] {
+async function getAudioPromptPlan(
+  context: {
+    projectId: string;
+    petProfile: PetProfile;
+    sceneLabel: string | null;
+    spatialPrompt: string | null;
+    imageUrls: string[];
+  },
+  deps: ElevenLabsAudioHandlerDeps
+): Promise<AudioPromptPlan> {
+  const fallback = buildFallbackAudioPromptPlan(context);
+  const promptPlanner =
+    deps.promptPlanner === undefined
+      ? createAudioPromptPlanner({ storage: deps.storage })
+      : deps.promptPlanner;
+
+  if (!promptPlanner) {
+    return fallback;
+  }
+
+  try {
+    return await promptPlanner.planAudioPrompts(context);
+  } catch {
+    return fallback;
+  }
+}
+
+function buildPlannedAudioAssets(input: AudioPromptPlan): PlannedAudioAsset[] {
   return [
     {
       kind: "background_music",
       assetKey: BACKGROUND_MUSIC_ASSET_KEY,
-      prompt: buildBackgroundMusicPrompt(input),
+      prompt: input.backgroundMusicPrompt,
       durationMs: BACKGROUND_MUSIC_DURATION_MS
     },
     ...PET_SOUND_EFFECT_INTENTS.map((intent) => ({
       kind: "pet_sound_effect" as const,
       assetKey: intent,
-      prompt: buildPetSoundEffectPrompt({
-        intent,
-        petProfile: input.petProfile
-      }),
+      prompt: input.petSoundEffects[intent],
       durationMs: Math.round(PET_SOUND_EFFECT_DURATION_SECONDS * 1_000)
     }))
   ];
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values.filter(Boolean))];
 }
 
 async function storeGeneratedAudio(input: {

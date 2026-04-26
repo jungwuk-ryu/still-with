@@ -38,7 +38,7 @@ export function getLocalStorageDir(): string {
 }
 
 export function requireOpenAIApiKey(): string {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  const apiKey = getOpenAIApiKey();
 
   if (!apiKey) {
     throw new MissingEnvironmentVariableError(
@@ -48,6 +48,10 @@ export function requireOpenAIApiKey(): string {
   }
 
   return apiKey;
+}
+
+export function getOpenAIApiKey(): string | null {
+  return process.env.OPENAI_API_KEY?.trim() || null;
 }
 
 export function getGeminiApiKey(): string | null {
