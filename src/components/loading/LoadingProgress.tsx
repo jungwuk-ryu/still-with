@@ -74,7 +74,7 @@ const LOADING_AMBIENT_AUDIO_SRC =
   "/audio/floating-dream-loop-2026-04-26.mp3";
 const LOADING_AMBIENT_VOLUME = 1;
 const AUDIO_FADE_DURATION_MS = 720;
-const PUBLIC_ENTRY_STAGE_MS = 5_000;
+const PUBLIC_ENTRY_STAGE_MS = 2_000;
 const PUBLIC_ENTRY_DESCRIPTIONS = [
   "Gathering the light already waiting in this dream.",
   "Opening the familiar traces without changing them.",
