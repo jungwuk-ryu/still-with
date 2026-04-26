@@ -76,7 +76,8 @@ export type MotionIntentKey =
   | "look_at_me"
   | "turn_around"
   | "sit"
-  | "come_closer";
+  | "come_closer"
+  | "bark";
 
 export interface PlannedMotion {
   sequenceId: string;

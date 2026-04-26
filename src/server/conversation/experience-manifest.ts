@@ -275,7 +275,8 @@ function isMotionIntentKey(value: string): value is MotionIntentKey {
     value === "look_at_me" ||
     value === "turn_around" ||
     value === "sit" ||
-    value === "come_closer"
+    value === "come_closer" ||
+    value === "bark"
   );
 }
 

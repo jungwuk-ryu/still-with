@@ -16,7 +16,8 @@ const RESPONSE_BY_INTENT: Record<MotionIntentKey, string> = {
   look_at_me: "Your pet turns gently toward you.",
   turn_around: "Your pet turns softly in place.",
   sit: "Your pet settles into a calm sit.",
-  come_closer: "Your pet takes a small step closer."
+  come_closer: "Your pet takes a small step closer.",
+  bark: "Your pet gives a small bark."
 };
 
 export function fallbackAssistantMessage(intent: MotionIntentKey): string {
@@ -62,7 +63,7 @@ export function planMotionQueueFromClips(
 
   const motionQueue = plan.motionKeys.map((motionKey, index) => {
     const motion = buildPlannedMotion({
-      intent,
+      intent: getAudioIntentForMotion(intent, motionKey),
       motionKey,
       clips,
       sequenceId: `${sequenceIdPrefix}-${index + 1}`,
@@ -120,12 +121,24 @@ function getRequestedMotionKeyForIntent(intent: MotionIntentKey): PetMotionKey {
       return "turn_360";
     case "sit":
       return "stand_to_sit";
+    case "bark":
     case "look_at_me":
       return "look_at_camera";
     case "idle":
     default:
       return "stand_idle";
   }
+}
+
+function getAudioIntentForMotion(
+  intent: MotionIntentKey,
+  motionKey: PetMotionKey
+): MotionIntentKey {
+  if (intent === "bark") {
+    return motionKey === "look_at_camera" ? "bark" : "idle";
+  }
+
+  return intent;
 }
 
 function buildPlannedMotion({

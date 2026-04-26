@@ -47,7 +47,8 @@ describe("audio prompt planner", () => {
             look_at_me: "soft head turn",
             turn_around: "soft paw turn",
             sit: "soft sit",
-            come_closer: "soft steps"
+            come_closer: "soft steps",
+            bark: "soft dog bark"
           }
         })
       });
@@ -108,7 +109,8 @@ describe("audio prompt planner", () => {
                       look_at_me: "gemini head turn",
                       turn_around: "gemini paw turn",
                       sit: "gemini sit",
-                      come_closer: "gemini steps"
+                      come_closer: "gemini steps",
+                      bark: "gemini soft dog bark"
                     }
                   })
                 }

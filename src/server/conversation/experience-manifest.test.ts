@@ -107,6 +107,19 @@ describe("experience manifest", () => {
       {
         projectId: project.id,
         kind: "pet_sound_effect",
+        assetKey: "bark",
+        prompt: "soft dog bark",
+        audioUrl: "/api/storage/projects/project/audio/bark.mp3",
+        providerName: "elevenlabs",
+        providerStatus: "succeeded",
+        status: "ready"
+      },
+      db
+    );
+    upsertAudioAssetRecord(
+      {
+        projectId: project.id,
+        kind: "pet_sound_effect",
         assetKey: "sit",
         prompt: "missing key fallback",
         audioUrl: null,
@@ -124,6 +137,7 @@ describe("experience manifest", () => {
     expect(manifest.audio).toEqual({
       backgroundMusicUrl: "/api/storage/projects/project/audio/background.mp3",
       petSoundEffects: {
+        bark: "/api/storage/projects/project/audio/bark.mp3",
         look_at_me: "/api/storage/projects/project/audio/look_at_me.mp3"
       }
     });

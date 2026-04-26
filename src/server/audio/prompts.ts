@@ -8,7 +8,8 @@ export const PET_SOUND_EFFECT_INTENTS = [
   "look_at_me",
   "turn_around",
   "sit",
-  "come_closer"
+  "come_closer",
+  "bark"
 ] as const satisfies readonly MotionIntentKey[];
 
 export const REQUIRED_EXPERIENCE_AUDIO_ASSETS = [
@@ -73,7 +74,9 @@ export function buildPetSoundEffectPrompt(input: {
     base,
     motion,
     "Very soft, close, natural, emotionally gentle.",
-    "No human voice, no words, no music, no loud bark, no sharp meow, no comedy effect."
+    input.intent === "bark"
+      ? "No human voice, no words, no music, no aggressive or startling bark, no comedy effect."
+      : "No human voice, no words, no music, no loud bark, no sharp meow, no comedy effect."
   ].join(" ");
 }
 
@@ -121,6 +124,10 @@ function getIntentSoundDirection(
         : "A gentle sit-down or curl-settle movement with quiet paws and soft body rustle.";
     case "look_at_me":
       return "A tiny head turn, soft breath, and almost silent attentive movement.";
+    case "bark":
+      return species === "dog"
+        ? "One short, natural, close dog bark, soft and warm, with a tiny breath after it."
+        : "One tiny, species-appropriate companion animal vocal sound, soft and warm, with a tiny breath after it.";
     case "idle":
     default:
       return "A subtle calm movement with gentle breathing.";

@@ -81,6 +81,7 @@ describe("motion intent planning", () => {
     ["look_at_me", "look_at_camera", "stand"],
     ["turn_around", "turn_360", "stand"],
     ["come_closer", "walk_small", "stand"],
+    ["bark", "look_at_camera", "stand"],
     ["sit", "stand_to_sit", "sit"]
   ] as const)(
     "maps %s intent to canonical %s motion",
@@ -198,9 +199,40 @@ describe("motion intent planning", () => {
     expect(nextState.queuedMotionKeys).toEqual([]);
   });
 
+  it("plays bark audio only on the concrete bark reaction clip", () => {
+    const sittingRuntimeState: PetRuntimeState = {
+      ...runtimeState,
+      currentPose: "sit"
+    };
+    const { motionQueue } = planMotionQueueFromClips(
+      "bark",
+      [
+        createClip("sit_to_stand", "sit", "stand"),
+        createClip("look_at_camera", "stand", "stand"),
+        createClip("stand_idle", "stand", "stand", "/api/storage/pets/idle.mp4", true)
+      ],
+      sittingRuntimeState,
+      "멍멍 해줘"
+    );
+
+    expect(motionQueue.map((motion) => motion.motionKey)).toEqual([
+      "sit_to_stand",
+      "look_at_camera",
+      "stand_idle"
+    ]);
+    expect(motionQueue.map((motion) => motion.key)).toEqual([
+      "idle",
+      "bark",
+      "idle"
+    ]);
+  });
+
   it("returns action status copy instead of pet dialogue", () => {
     expect(fallbackAssistantMessage("look_at_me")).toBe(
       "Your pet turns gently toward you."
+    );
+    expect(fallbackAssistantMessage("bark")).toBe(
+      "Your pet gives a small bark."
     );
     expect(fallbackAssistantMessage("look_at_me")).not.toContain("I'm");
   });

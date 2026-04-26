@@ -137,6 +137,17 @@ describe("motion intent agent", () => {
         { apiKey: null }
       )
     ).resolves.toMatchObject({ intent: "idle", source: "fallback" });
+
+    await expect(
+      selectMotionIntentWithAgent(
+        {
+          message: "멍멍 해줘",
+          motionClips: [createClip("look_at_camera", "stand", "stand")],
+          runtimeState
+        },
+        { apiKey: null }
+      )
+    ).resolves.toMatchObject({ intent: "bark", source: "fallback" });
   });
 
   it.each([
@@ -144,7 +155,9 @@ describe("motion intent agent", () => {
     ["stand", "idle"],
     ["turn", "turn_around"],
     ["come", "come_closer"],
-    ["look", "look_at_me"]
+    ["look", "look_at_me"],
+    ["bark", "bark"],
+    ["woof", "bark"]
   ] as const)(
     "maps English fallback cue %s to %s",
     async (message, expectedIntent) => {

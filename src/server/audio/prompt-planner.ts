@@ -311,7 +311,7 @@ function buildAudioPromptPlannerUserPrompt(input: AudioPromptPlanningInput): str
     `Body: ${input.petProfile.bodyDescription ?? "unknown"}`,
     `Markings: ${input.petProfile.distinctiveMarkings.join(", ") || "none"}`,
     `Accessories: ${input.petProfile.accessories.join(", ") || "none"}`,
-    "Required JSON keys: backgroundMusicPrompt, petSoundEffects.look_at_me, petSoundEffects.turn_around, petSoundEffects.sit, petSoundEffects.come_closer."
+    "Required JSON keys: backgroundMusicPrompt, petSoundEffects.look_at_me, petSoundEffects.turn_around, petSoundEffects.sit, petSoundEffects.come_closer, petSoundEffects.bark."
   ].join("\n");
 }
 

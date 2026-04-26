@@ -128,6 +128,7 @@ function buildMotionAgentInstructions(): string {
     "Use semantic meaning, the current pet pose, and the available motion contract. Do not answer as the pet.",
     "If the user asks the pet to sit, settle down, rest in a seated pose, or gives an equivalent command in another language, choose sit.",
     "If the user asks the pet to come near, choose come_closer. If they ask for a spin or turn, choose turn_around. If they ask for attention or eye contact, choose look_at_me.",
+    "If the user asks a dog to bark, woof, speak, or make a short barking sound in any language, choose bark.",
     "If the message is affectionate or ambiguous but directed at the pet, choose look_at_me. If it is empty or has no pet-directed action, choose idle.",
     "Return JSON only."
   ].join("\n");
@@ -137,7 +138,14 @@ function buildMotionAgentPayload(input: MotionIntentAgentInput) {
   return {
     message: input.message,
     currentPetPose: input.runtimeState.currentPose,
-    allowedIntents: ["idle", "look_at_me", "turn_around", "sit", "come_closer"],
+    allowedIntents: [
+      "idle",
+      "look_at_me",
+      "turn_around",
+      "sit",
+      "come_closer",
+      "bark"
+    ],
     availableMotionContract: buildAvailableMotionContract(input.motionClips)
   };
 }
@@ -169,11 +177,14 @@ function inferFallbackIntent(message: string): MotionIntentKey {
   }
 
   const inferredMotionKey =
+    inferBarkIntent(trimmed) ??
     inferMotionKeyFromCommand(trimmed) ??
     inferAdditionalEnglishMotionKey(trimmed) ??
     inferKoreanMotionKey(trimmed);
 
   switch (inferredMotionKey) {
+    case "bark":
+      return "bark";
     case "stand_to_sit":
     case "sit":
       return "sit";
@@ -189,6 +200,20 @@ function inferFallbackIntent(message: string): MotionIntentKey {
     default:
       return "look_at_me";
   }
+}
+
+function inferBarkIntent(message: string): "bark" | null {
+  const normalized = message.toLowerCase().replace(/\s+/g, " ");
+
+  if (/\b(bark|woof|arf|speak)\b/.test(normalized)) {
+    return "bark";
+  }
+
+  if (/멍멍|멍 |짖|월월|왈왈/.test(normalized)) {
+    return "bark";
+  }
+
+  return null;
 }
 
 function inferAdditionalEnglishMotionKey(message: string): PetMotionKey | null {
@@ -236,7 +261,8 @@ function coerceMotionIntent(value: unknown): MotionIntentKey | null {
     value === "look_at_me" ||
     value === "turn_around" ||
     value === "sit" ||
-    value === "come_closer"
+    value === "come_closer" ||
+    value === "bark"
     ? value
     : null;
 }
@@ -286,7 +312,7 @@ const MOTION_INTENT_SCHEMA = {
   properties: {
     intent: {
       type: "string",
-      enum: ["idle", "look_at_me", "turn_around", "sit", "come_closer"]
+      enum: ["idle", "look_at_me", "turn_around", "sit", "come_closer", "bark"]
     },
     confidence: {
       type: "number"

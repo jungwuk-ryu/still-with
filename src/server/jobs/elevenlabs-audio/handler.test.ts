@@ -170,7 +170,8 @@ describe("handleElevenLabsAudioJob", () => {
               look_at_me: "llm planned look sound",
               turn_around: "llm planned turn sound",
               sit: "llm planned sit sound",
-              come_closer: "llm planned step sound"
+              come_closer: "llm planned step sound",
+              bark: "llm planned soft dog bark"
             },
             model: "gpt-5.4",
             source: "llm"
@@ -181,6 +182,7 @@ describe("handleElevenLabsAudioJob", () => {
 
     expect(prompts).toContain("llm planned background music");
     expect(prompts).toContain("llm planned look sound");
+    expect(prompts).toContain("llm planned soft dog bark");
     expect(result).toMatchObject({
       promptSource: "llm",
       promptModel: "gpt-5.4"
