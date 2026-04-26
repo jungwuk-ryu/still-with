@@ -1,4 +1,8 @@
 import { REQUIRED_MOTION_KEYS } from "@/pet/motion-set";
+import {
+  REQUIRED_EXPERIENCE_AUDIO_ASSETS,
+  listAudioAssetRecords
+} from "@/server/audio";
 import { createGenerationJob } from "@/server/jobs/repository";
 import { listMotionClipRecords } from "@/server/motion";
 import type { DatabaseClient } from "@/server/db";
@@ -148,6 +152,11 @@ export function markProjectReadyIfAssetsComplete(
     return null;
   }
 
+  if (!hasRequiredAudioAssets(projectId, db)) {
+    enqueueElevenLabsAudioJob(projectId, db);
+    return null;
+  }
+
   const stage = getLoadingStage(TOTAL_LOADING_STEPS - 1);
   const updatedProject = updateProjectLifecycle(
     projectId,
@@ -171,12 +180,43 @@ export function markProjectReadyIfAssetsComplete(
   return updatedProject;
 }
 
+export function enqueueElevenLabsAudioJob(
+  projectId: string,
+  db: DatabaseClient
+): void {
+  if (hasProjectJob(projectId, "elevenlabs-audio", db)) {
+    return;
+  }
+
+  createGenerationJob(
+    {
+      projectId,
+      type: "elevenlabs-audio",
+      priority: 6,
+      maxAttempts: 2
+    },
+    db
+  );
+}
+
 export function updateProjectToStage(
   projectId: string,
   input: ProjectLifecycleUpdate,
   db: DatabaseClient
 ): Project | null {
   return updateProjectLifecycle(projectId, input, db);
+}
+
+function hasRequiredAudioAssets(projectId: string, db: DatabaseClient): boolean {
+  const terminalAssets = new Set(
+    listAudioAssetRecords(projectId, db)
+      .filter((asset) => asset.status === "ready" || asset.status === "skipped")
+      .map((asset) => `${asset.kind}:${asset.assetKey}`)
+  );
+
+  return REQUIRED_EXPERIENCE_AUDIO_ASSETS.every((asset) =>
+    terminalAssets.has(`${asset.kind}:${asset.assetKey}`)
+  );
 }
 
 function hasProjectJob(

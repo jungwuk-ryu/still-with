@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createProjectRecord, openDatabase, type DatabaseClient } from "@/server/db";
+import { upsertAudioAssetRecord } from "@/server/audio";
 import { getOpenSpaceAccessTokenCount } from "@/server/realtime/space-access";
 import { getExperienceManifest } from "./experience-manifest";
 
@@ -60,6 +61,62 @@ describe("experience manifest", () => {
     expect(manifest.chatAccessToken).toEqual(expect.any(String));
     expect(manifest.realtimeAccessToken).toEqual(expect.any(String));
     expect(getOpenSpaceAccessTokenCount(db)).toBe(2);
+  });
+
+  it("includes only ready ElevenLabs audio URLs in the client manifest", async () => {
+    db = await createTestDatabase();
+    const project = createProjectRecord({ status: "ready" }, db);
+
+    upsertAudioAssetRecord(
+      {
+        projectId: project.id,
+        kind: "background_music",
+        assetKey: "background",
+        prompt: "quiet music",
+        audioUrl: "/api/storage/projects/project/audio/background.mp3",
+        providerName: "elevenlabs",
+        providerStatus: "succeeded",
+        status: "ready"
+      },
+      db
+    );
+    upsertAudioAssetRecord(
+      {
+        projectId: project.id,
+        kind: "pet_sound_effect",
+        assetKey: "look_at_me",
+        prompt: "soft paws",
+        audioUrl: "/api/storage/projects/project/audio/look_at_me.mp3",
+        providerName: "elevenlabs",
+        providerStatus: "succeeded",
+        status: "ready"
+      },
+      db
+    );
+    upsertAudioAssetRecord(
+      {
+        projectId: project.id,
+        kind: "pet_sound_effect",
+        assetKey: "sit",
+        prompt: "missing key fallback",
+        audioUrl: null,
+        providerName: "elevenlabs",
+        providerStatus: "skipped",
+        status: "skipped"
+      },
+      db
+    );
+
+    const manifest = getExperienceManifest(project.id, db, {
+      issueAccessTokens: false
+    });
+
+    expect(manifest.audio).toEqual({
+      backgroundMusicUrl: "/api/storage/projects/project/audio/background.mp3",
+      petSoundEffects: {
+        look_at_me: "/api/storage/projects/project/audio/look_at_me.mp3"
+      }
+    });
   });
 });
 

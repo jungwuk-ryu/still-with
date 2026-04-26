@@ -8,6 +8,7 @@ import type {
   PlannedMotion
 } from "@/server/conversation/types";
 import { FloatingChatBar } from "@/components/chat/FloatingChatBar";
+import { ExperienceAudio } from "./ExperienceAudio";
 import { MemoryScene } from "./MemoryScene";
 
 interface MemorySpaceClientProps {
@@ -44,6 +45,7 @@ export function MemorySpaceClient({ manifest }: MemorySpaceClientProps) {
         activeMotion={activeMotion}
         petState={petState}
       />
+      <ExperienceAudio audio={manifest.audio} activeMotion={activeMotion} />
       <FloatingChatBar
         projectId={manifest.projectId}
         chatAccessToken={manifest.chatAccessToken}

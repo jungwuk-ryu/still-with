@@ -4,6 +4,10 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createProjectRecord, openDatabase, updateProjectSelectedPet } from "@/server/db";
 import type { DatabaseClient } from "@/server/db";
+import {
+  REQUIRED_EXPERIENCE_AUDIO_ASSETS,
+  upsertAudioAssetRecord
+} from "@/server/audio";
 import { upsertPetProfileRecord } from "@/server/jobs/pet-analysis/pet-profile-repository";
 import { upsertMotionClipRecord } from "@/server/motion";
 import { PET_MOTION_DEFINITIONS, REQUIRED_MOTION_KEYS } from "@/pet/motion-set";
@@ -48,6 +52,33 @@ describe("project generation pipeline", () => {
           processedVideoUrl: `/api/storage/projects/${project.id}/pet/${motionKey}.mp4`,
           durationMs: definition.durationMs,
           loopable: definition.loopable,
+          status: "ready"
+        },
+        db
+      );
+    }
+
+    const waitingForAudioProject = markProjectReadyIfAssetsComplete(project.id, db);
+    const audioJob = db
+      .prepare("SELECT type, status FROM generation_jobs WHERE project_id = ?")
+      .get(project.id) as { type: string; status: string } | undefined;
+
+    expect(waitingForAudioProject).toBeNull();
+    expect(audioJob).toMatchObject({
+      type: "elevenlabs-audio",
+      status: "queued"
+    });
+
+    for (const asset of REQUIRED_EXPERIENCE_AUDIO_ASSETS) {
+      upsertAudioAssetRecord(
+        {
+          projectId: project.id,
+          kind: asset.kind,
+          assetKey: asset.assetKey,
+          prompt: "quiet generated audio",
+          audioUrl: `/api/storage/projects/${project.id}/audio/${asset.assetKey}.mp3`,
+          providerName: "elevenlabs",
+          providerStatus: "succeeded",
           status: "ready"
         },
         db

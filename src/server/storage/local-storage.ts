@@ -119,6 +119,13 @@ function inferContentType(key: string): string {
       return "application/json";
     case ".svg":
       return "image/svg+xml";
+    case ".mp3":
+      return "audio/mpeg";
+    case ".wav":
+      return "audio/wav";
+    case ".ogg":
+    case ".opus":
+      return "audio/ogg";
     case ".mp4":
       return "video/mp4";
     case ".webm":

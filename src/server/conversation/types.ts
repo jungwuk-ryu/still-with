@@ -34,10 +34,16 @@ export interface ExperiencePetManifest {
   placement: PetBillboardPlacement;
 }
 
+export interface ExperienceAudioManifest {
+  backgroundMusicUrl: string | null;
+  petSoundEffects: Partial<Record<MotionIntentKey, string>>;
+}
+
 export interface ExperienceManifest {
   projectId: string;
   world: ExperienceWorldManifest;
   pet: ExperiencePetManifest;
+  audio: ExperienceAudioManifest;
   chatAccessToken: string | null;
   realtimeAccessToken: string | null;
   generatedAt: string;

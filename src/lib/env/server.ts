@@ -80,6 +80,23 @@ export function requireWorldLabsApiKey(): string {
   return apiKey;
 }
 
+export function getElevenLabsApiKey(): string | null {
+  return process.env.ELEVENLABS_API_KEY?.trim() || null;
+}
+
+export function requireElevenLabsApiKey(): string {
+  const apiKey = getElevenLabsApiKey();
+
+  if (!apiKey) {
+    throw new MissingEnvironmentVariableError(
+      "ELEVENLABS_API_KEY",
+      "ELEVENLABS_API_KEY is required when calling the ElevenLabs provider."
+    );
+  }
+
+  return apiKey;
+}
+
 export function getResendApiKey(): string | null {
   return process.env.RESEND_API_KEY?.trim() || null;
 }

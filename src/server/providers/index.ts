@@ -1,4 +1,5 @@
 export * from "./errors";
+export * from "./elevenlabs";
 export * from "./image-inputs";
 export * from "./openai";
 export * from "./sora";

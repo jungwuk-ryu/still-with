@@ -156,6 +156,32 @@ export interface PetRuntimeState {
   lastUpdatedAt: ISODateString;
 }
 
+export type AudioAssetKind = "background_music" | "pet_sound_effect";
+
+export type AudioAssetStatus =
+  | "pending"
+  | "generating"
+  | "ready"
+  | "skipped"
+  | "failed";
+
+export interface AudioAsset {
+  id: string;
+  projectId: string;
+  kind: AudioAssetKind;
+  assetKey: string;
+  prompt: string;
+  audioUrl: string | null;
+  contentType: string;
+  durationMs: number | null;
+  providerName: string | null;
+  providerStatus: string | null;
+  providerErrorMessage: string | null;
+  status: AudioAssetStatus;
+  createdAt: ISODateString;
+  updatedAt: ISODateString;
+}
+
 export type GenerationJobType =
   | "pet-analysis"
   | "pet-selection"
@@ -166,6 +192,7 @@ export type GenerationJobType =
   | "pet-video"
   | "video-postprocess"
   | "quality-evaluation"
+  | "elevenlabs-audio"
   | "completion-email"
   | "conversation";
 

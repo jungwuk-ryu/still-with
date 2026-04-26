@@ -48,6 +48,40 @@ export interface RealtimeClientSecretResult {
   expiresAt: string;
 }
 
+export interface ElevenLabsMusicInput {
+  prompt: string;
+  musicLengthMs?: number;
+  forceInstrumental?: boolean;
+  modelId?: "music_v1";
+  context?: ProviderCallContext;
+}
+
+export interface ElevenLabsSoundEffectInput {
+  text: string;
+  durationSeconds?: number;
+  loop?: boolean;
+  promptInfluence?: number;
+  modelId?: "eleven_text_to_sound_v2";
+  context?: ProviderCallContext;
+}
+
+export interface ElevenLabsAudioResult {
+  audio: Buffer;
+  contentType: string;
+  raw: {
+    characterCost: string | null;
+    songId: string | null;
+    outputFormat: string;
+  };
+}
+
+export interface ElevenLabsProvider {
+  composeMusic(input: ElevenLabsMusicInput): Promise<ElevenLabsAudioResult>;
+  createSoundEffect(
+    input: ElevenLabsSoundEffectInput
+  ): Promise<ElevenLabsAudioResult>;
+}
+
 export interface OpenAIProvider {
   analyzePetIdentity(
     input: PetIdentityAnalysisInput
@@ -146,4 +180,10 @@ export interface ProviderOptions {
   soraModel?: string;
   veoModel?: string;
   realtimeModel?: string;
+}
+
+export interface ElevenLabsProviderOptions extends ProviderOptions {
+  fetchImpl?: typeof fetch;
+  maxRetries?: number;
+  outputFormat?: string;
 }
