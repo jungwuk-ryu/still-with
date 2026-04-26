@@ -56,7 +56,9 @@ describe("OpenAISceneSeedGenerator", () => {
     expect(calls[0]?.body.get("prompt")).toBe(
       "A quiet room empty of pets, people, and all other animals."
     );
-    expect(calls[0]?.body.getAll("image")).toHaveLength(1);
+    expect(calls[0]?.body.getAll("image[]")).toHaveLength(1);
+    expect(calls[0]?.body.get("output_format")).toBe("png");
+    expect(calls[0]?.body.get("moderation")).toBe("auto");
     expect(seed).toMatchObject({
       view: "front"
     });
@@ -137,6 +139,163 @@ describe("OpenAISceneSeedGenerator", () => {
     ).resolves.toMatchObject({
       body: Buffer.from("generated-from-url")
     });
+  });
+
+  it("falls back to prompt generation when image edits are rejected", async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "still-with-openai-seeds-"));
+    const storage = createLocalStorageDriver(path.join(tmpDir, "uploads"));
+    await storage.putObject({
+      key: "projects/project-1/uploads/reference.jpg",
+      body: "reference-image",
+      contentType: "image/jpeg"
+    });
+    const calls: string[] = [];
+    const fetchImpl: typeof fetch = async (url) => {
+      calls.push(String(url));
+
+      if (String(url) === "https://api.openai.com/v1/images/edits") {
+        return new Response(
+          JSON.stringify({
+            error: {
+              code: "invalid_request_error",
+              message: "image edit was rejected"
+            }
+          }),
+          {
+            status: 400,
+            headers: {
+              "Content-Type": "application/json",
+              "x-request-id": "req-edit"
+            }
+          }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          data: [{ b64_json: Buffer.from("fallback-image").toString("base64") }]
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    };
+    const generator = new OpenAISceneSeedGenerator({
+      apiKey: "test-key",
+      fetchImpl,
+      storage
+    });
+
+    const seed = await generator.generateSeed({
+      projectId: "project-1",
+      sceneClusterId: "scene-1",
+      view: "front",
+      prompt: "A quiet room.",
+      sourceImageUrls: ["/api/storage/projects/project-1/uploads/reference.jpg"]
+    });
+
+    expect(calls).toEqual([
+      "https://api.openai.com/v1/images/edits",
+      "https://api.openai.com/v1/images/generations"
+    ]);
+    await expect(
+      storage.getObject("projects/project-1/space-seeds/scene-1/front.png")
+    ).resolves.toMatchObject({
+      body: Buffer.from("fallback-image")
+    });
+    expect(seed.view).toBe("front");
+  });
+
+  it("does not fall back to prompt generation for transient edit failures", async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "still-with-openai-seeds-"));
+    const storage = createLocalStorageDriver(path.join(tmpDir, "uploads"));
+    await storage.putObject({
+      key: "projects/project-1/uploads/reference.jpg",
+      body: "reference-image",
+      contentType: "image/jpeg"
+    });
+    const calls: string[] = [];
+    const fetchImpl: typeof fetch = async (url) => {
+      calls.push(String(url));
+      return new Response(
+        JSON.stringify({
+          error: {
+            code: "rate_limit_exceeded",
+            message: "try again later"
+          }
+        }),
+        {
+          status: 429,
+          headers: {
+            "Content-Type": "application/json",
+            "x-request-id": "req-rate-limit"
+          }
+        }
+      );
+    };
+    const generator = new OpenAISceneSeedGenerator({
+      apiKey: "test-key",
+      fetchImpl,
+      storage
+    });
+
+    await expect(
+      generator.generateSeed({
+        projectId: "project-1",
+        sceneClusterId: "scene-1",
+        view: "front",
+        prompt: "A quiet room.",
+        sourceImageUrls: ["/api/storage/projects/project-1/uploads/reference.jpg"]
+      })
+    ).rejects.toThrow(
+      "OpenAI scene seed edit generation failed with HTTP 429 request_id=req-rate-limit rate_limit_exceeded: try again later"
+    );
+    expect(calls).toEqual(["https://api.openai.com/v1/images/edits"]);
+  });
+
+  it("does not fall back to prompt generation for edit contract errors", async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "still-with-openai-seeds-"));
+    const storage = createLocalStorageDriver(path.join(tmpDir, "uploads"));
+    await storage.putObject({
+      key: "projects/project-1/uploads/reference.jpg",
+      body: "reference-image",
+      contentType: "image/jpeg"
+    });
+    const calls: string[] = [];
+    const fetchImpl: typeof fetch = async (url) => {
+      calls.push(String(url));
+      return new Response(
+        JSON.stringify({
+          error: {
+            code: "invalid_request_error",
+            message: "Unsupported parameter: image"
+          }
+        }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            "x-request-id": "req-contract"
+          }
+        }
+      );
+    };
+    const generator = new OpenAISceneSeedGenerator({
+      apiKey: "test-key",
+      fetchImpl,
+      storage
+    });
+
+    await expect(
+      generator.generateSeed({
+        projectId: "project-1",
+        sceneClusterId: "scene-1",
+        view: "front",
+        prompt: "A quiet room.",
+        sourceImageUrls: ["/api/storage/projects/project-1/uploads/reference.jpg"]
+      })
+    ).rejects.toThrow(
+      "OpenAI scene seed edit generation failed with HTTP 400 request_id=req-contract invalid_request_error: Unsupported parameter: image"
+    );
+    expect(calls).toEqual(["https://api.openai.com/v1/images/edits"]);
   });
 
   it("rejects unsupported OpenAI image payloads", async () => {

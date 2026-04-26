@@ -33,13 +33,42 @@ export class OpenAISceneSeedGenerator implements SceneSeedGenerator {
     input: SceneSeedGeneratorInput
   ): Promise<GeneratedSeedImage> {
     const apiKey = this.options.apiKey ?? requireOpenAIApiKey();
-    const response =
+    let response =
       input.sourceImageUrls.length > 0
         ? await this.generateImageEdit(apiKey, input)
         : await this.generateImageFromPrompt(apiKey, input);
 
+    if (!response.ok && input.sourceImageUrls.length > 0) {
+      const editError = await readOpenAIImageError(
+        response,
+        "OpenAI scene seed edit generation"
+      );
+
+      if (!shouldFallbackFromEditRejection(editError)) {
+        throw new Error(formatOpenAIImageError(editError));
+      }
+
+      response = await this.generateImageFromPrompt(apiKey, input);
+
+      if (!response.ok) {
+        const fallbackError = await readOpenAIImageError(
+          response,
+          "OpenAI scene seed prompt generation"
+        );
+        throw new Error(
+          `${formatOpenAIImageError(editError)}; prompt fallback failed: ${formatOpenAIImageError(
+            fallbackError
+          )}`
+        );
+      }
+    }
+
     if (!response.ok) {
-      throw new Error(`OpenAI scene seed generation failed with HTTP ${response.status}.`);
+      throw new Error(
+        formatOpenAIImageError(
+          await readOpenAIImageError(response, "OpenAI scene seed generation")
+        )
+      );
     }
 
     const raw = (await response.json()) as unknown;
@@ -99,7 +128,9 @@ export class OpenAISceneSeedGenerator implements SceneSeedGenerator {
     body.set("n", "1");
     body.set("size", input.view === "panorama" ? "2048x1024" : "1536x1024");
     body.set("quality", "high");
+    body.set("output_format", "png");
     body.set("background", "opaque");
+    body.set("moderation", "auto");
 
     for (const sourceImageUrl of input.sourceImageUrls.slice(0, 4)) {
       const sourceImage = await loadProviderImage(sourceImageUrl, {
@@ -112,7 +143,7 @@ export class OpenAISceneSeedGenerator implements SceneSeedGenerator {
         sourceImage.body.byteOffset + sourceImage.body.byteLength
       ) as ArrayBuffer;
       body.append(
-        "image",
+        "image[]",
         new Blob([imageBytes], { type: sourceImage.contentType }),
         sourceImage.filename
       );
@@ -126,6 +157,72 @@ export class OpenAISceneSeedGenerator implements SceneSeedGenerator {
       body
     });
   }
+}
+
+interface OpenAIImageError {
+  label: string;
+  status: number;
+  requestId: string | null;
+  code: string | null;
+  message: string | null;
+}
+
+async function readOpenAIImageError(
+  response: Response,
+  label: string
+): Promise<OpenAIImageError> {
+  const requestId = response.headers.get("x-request-id");
+  let code: string | null = null;
+  let message: string | null = null;
+
+  try {
+    const body = (await response.json()) as {
+      error?: { message?: string; code?: string };
+    };
+    code = body.error?.code ?? null;
+    message = body.error?.message ?? null;
+  } catch {
+    message = await response.text().catch(() => "");
+  }
+
+  return {
+    label,
+    status: response.status,
+    requestId,
+    code,
+    message
+  };
+}
+
+function shouldFallbackFromEditRejection(error: OpenAIImageError): boolean {
+  if (error.status !== 400) {
+    return false;
+  }
+
+  const detail = `${error.code ?? ""} ${error.message ?? ""}`.toLowerCase();
+  const mentionsImageInput = /\b(image|input|reference|photo)\b/.test(detail);
+  const mentionsRejection =
+    /\b(reject|rejected|moderation|policy|safety|content)\b/.test(detail);
+  const mentionsContractFailure =
+    /\b(unknown|unsupported|missing|required|parameter|multipart|field)\b/.test(
+      detail
+    );
+
+  return mentionsImageInput && mentionsRejection && !mentionsContractFailure;
+}
+
+function formatOpenAIImageError(error: OpenAIImageError): string {
+  const detail = error.code
+    ? `${error.code}: ${error.message ?? "request failed"}`
+    : error.message;
+
+  return [
+    `${error.label} failed with HTTP ${error.status}`,
+    error.requestId ? `request_id=${error.requestId}` : null,
+    detail || null
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 async function putGeneratedSeedImage(
