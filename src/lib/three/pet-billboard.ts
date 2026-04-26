@@ -191,6 +191,7 @@ export function createPetBillboard(options: PetBillboardOptions): PetBillboard {
         video.currentTime = 0;
         void video.play().catch(() => {
           setTexture(fallbackTexture);
+          loadPosterFallback(loadVersion);
         });
       }
       return;
@@ -275,7 +276,7 @@ function createChromaKeyMaterial(
       keyColor: { value: keyColor },
       similarity: { value: chromaKeyColor === "blue" ? 0.32 : 0.34 },
       smoothness: { value: 0.08 },
-      spill: { value: chromaKeyColor === "blue" ? 0.1 : 0.12 }
+      spill: { value: chromaKeyColor === "blue" ? 0.66 : 0.78 }
     },
     transparent: true,
     depthTest: false,
@@ -299,11 +300,34 @@ function createChromaKeyMaterial(
 
       void main() {
         vec4 color = texture2D(map, vUv);
+        float keyChannel = keyColor.g > keyColor.b ? color.g : color.b;
+        float redBlueMax = keyColor.g > keyColor.b ? max(color.r, color.b) : max(color.r, color.g);
+        float redBlueMin = keyColor.g > keyColor.b ? min(color.r, color.b) : min(color.r, color.g);
+        float channelDominance = max(keyChannel - redBlueMax, 0.0);
+        float saturation = keyChannel - min(redBlueMin, keyChannel);
         float distanceToKey = distance(color.rgb, keyColor);
-        float alpha = smoothstep(similarity, similarity + smoothness, distanceToKey);
-        float spillAmount = max(keyColor.g > keyColor.b ? color.g - max(color.r, color.b) : color.b - max(color.r, color.g), 0.0);
-        color.rgb -= keyColor * spillAmount * spill;
-        gl_FragColor = vec4(max(color.rgb, vec3(0.0)), color.a * alpha);
+        float distanceAlpha = smoothstep(similarity, similarity + smoothness, distanceToKey);
+        float screenAlpha = 1.0 - (
+          smoothstep(0.035, 0.16, channelDominance) *
+          smoothstep(0.08, 0.22, saturation)
+        );
+        float alpha = color.a * min(distanceAlpha, screenAlpha);
+        float spillAmount = smoothstep(0.02, 0.18, channelDominance) * spill;
+        vec3 neutralized = color.rgb;
+
+        if (keyColor.g > keyColor.b) {
+          neutralized.g = min(neutralized.g, redBlueMax + 0.025);
+        } else {
+          neutralized.b = min(neutralized.b, redBlueMax + 0.025);
+        }
+
+        color.rgb = mix(color.rgb, neutralized, spillAmount);
+
+        if (alpha < 0.025) {
+          discard;
+        }
+
+        gl_FragColor = vec4(max(color.rgb, vec3(0.0)), alpha);
       }
     `
   });
