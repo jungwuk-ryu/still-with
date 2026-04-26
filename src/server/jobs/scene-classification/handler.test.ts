@@ -59,10 +59,11 @@ describe("scene classification handler", () => {
     });
     const nextJob = db
       .prepare(
-        "SELECT type, payload_json FROM generation_jobs WHERE type = 'space-seed'"
+        "SELECT type, payload_json, max_attempts FROM generation_jobs WHERE type = 'space-seed'"
       )
-      .get() as { type: string; payload_json: string };
+      .get() as { type: string; payload_json: string; max_attempts: number };
     expect(nextJob.type).toBe("space-seed");
+    expect(nextJob.max_attempts).toBe(1);
     expect(JSON.parse(nextJob.payload_json)).toMatchObject({
       sceneClusterId: sceneCluster.id,
       seedStrategy: "generated-multiview"

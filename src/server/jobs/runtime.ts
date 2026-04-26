@@ -1,4 +1,5 @@
 import { getDatabase } from "@/server/db";
+import { handleCompletionEmailJob } from "./completion-email/handler";
 import { handlePetAnalysisJob } from "./pet-analysis/handler";
 import { handlePetKeyframeJob } from "./pet-keyframes/handler";
 import { handlePetVideoJob } from "./pet-video/handler";
@@ -21,6 +22,7 @@ export function ensureGenerationWorkerStarted(): void {
       "pet-analysis": (job) => handlePetAnalysisJob(job, { db }),
       "pet-keyframe": (job) => handlePetKeyframeJob(job, { db }),
       "pet-video": (job) => handlePetVideoJob(job, { db }),
+      "completion-email": (job) => handleCompletionEmailJob(job, { db }),
       ...createSpacePipelineHandlers({ db })
     }
   });

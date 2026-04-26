@@ -12,6 +12,7 @@ import {
   updateProjectLifecycle,
   type ProjectLifecycleUpdate
 } from "./repository";
+import { enqueueProjectCompletionEmailJob } from "./email-notifications";
 
 const ACTIVE_JOB_STATUSES = ["queued", "retrying", "running", "succeeded"];
 
@@ -148,7 +149,7 @@ export function markProjectReadyIfAssetsComplete(
   }
 
   const stage = getLoadingStage(TOTAL_LOADING_STEPS - 1);
-  return updateProjectLifecycle(
+  const updatedProject = updateProjectLifecycle(
     projectId,
     {
       status: "ready",
@@ -162,6 +163,12 @@ export function markProjectReadyIfAssetsComplete(
     },
     db
   );
+
+  if (updatedProject) {
+    enqueueProjectCompletionEmailJob(projectId, db);
+  }
+
+  return updatedProject;
 }
 
 export function updateProjectToStage(

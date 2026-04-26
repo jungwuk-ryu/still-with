@@ -79,3 +79,14 @@ export function requireWorldLabsApiKey(): string {
 
   return apiKey;
 }
+
+export function getResendApiKey(): string | null {
+  return process.env.RESEND_API_KEY?.trim() || null;
+}
+
+export function getResendFromEmail(): string {
+  return (
+    process.env.RESEND_FROM_EMAIL?.trim() ||
+    "Still With <notifications@stillwith.local>"
+  );
+}

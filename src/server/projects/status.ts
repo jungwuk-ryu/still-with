@@ -1,8 +1,12 @@
 import type { Project, ProjectStatus, UploadedImage } from "@/types";
 import { getDatabase, type DatabaseClient } from "@/server/db";
 import { getSelectedSceneClusterForProject } from "@/server/assets/world-assets";
-import { SPACE_RECONSTRUCTION_PROMPT_VERSION } from "@/ai/scene";
+import {
+  MAX_SPACE_PREVIEW_IMAGES,
+  SPACE_RECONSTRUCTION_PROMPT_VERSION
+} from "@/ai/scene";
 import { getProjectBundle } from "./repository";
+import { hasProjectCompletionEmailSubscription } from "./email-notifications";
 import {
   getDefaultStageIndexForStatus,
   getLoadingStage,
@@ -55,6 +59,7 @@ export interface PublicProjectStatus {
   uploadedImages: PublicProjectImage[];
   spacePreviewImages: PublicSpacePreviewImage[];
   selectedPetId: string | null;
+  hasCompletionEmailSubscription: boolean;
   updatedAt: string;
 }
 
@@ -109,6 +114,10 @@ export function getPublicProjectStatus(
     uploadedImages: bundle.uploadedImages.map(toPublicImage),
     spacePreviewImages: getSpacePreviewImages(bundle.project.id, db),
     selectedPetId: bundle.project.selectedPetId,
+    hasCompletionEmailSubscription: hasProjectCompletionEmailSubscription(
+      bundle.project.id,
+      db
+    ),
     updatedAt: bundle.project.updatedAt
   };
 }
@@ -120,8 +129,22 @@ function getPublicProjectError(project: Project): PublicProjectError | null {
 
   return {
     code: project.errorCode,
-    message: "Generation failed before the memory space could be prepared."
+    message: getPublicFailureMessage(project)
   };
+}
+
+function getPublicFailureMessage(project: Project): string {
+  const stageIndex = getVisibleStageIndex(project);
+
+  if (stageIndex >= 4) {
+    return "The room was prepared, but the gentle presence could not be completed.";
+  }
+
+  if (stageIndex >= 2) {
+    return "The room could not be fully prepared from these photos.";
+  }
+
+  return "The photos could not be prepared for this memory.";
 }
 
 function getVisibleStageIndex(project: Project): number {
@@ -171,12 +194,14 @@ function getSpacePreviewImages(
     return [];
   }
 
-  return sceneCluster.seedImageUrls.map((url, index) => ({
-    id: `${sceneCluster.id}-seed-${index}`,
-    url,
-    label: `Space reconstruction preview ${index + 1}`,
-    order: index
-  }));
+  return sceneCluster.seedImageUrls
+    .slice(0, MAX_SPACE_PREVIEW_IMAGES)
+    .map((url, index) => ({
+      id: `${sceneCluster.id}-seed-${index}`,
+      url,
+      label: `Space reconstruction preview ${index + 1}`,
+      order: index
+    }));
 }
 
 function getRetryAfterSeconds(runAfter: string): number {

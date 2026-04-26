@@ -143,6 +143,21 @@ CREATE TABLE IF NOT EXISTS generation_jobs (
   FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS project_email_notifications (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  email TEXT NOT NULL,
+  normalized_email TEXT NOT NULL,
+  status TEXT NOT NULL,
+  send_attempts INTEGER NOT NULL DEFAULT 0,
+  requested_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  last_attempt_at TEXT,
+  sent_at TEXT,
+  last_error TEXT,
+  FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
 CREATE INDEX IF NOT EXISTS idx_uploaded_images_project ON uploaded_images(project_id, upload_order);
 CREATE INDEX IF NOT EXISTS idx_scene_clusters_project ON scene_clusters(project_id, status);
@@ -151,4 +166,8 @@ CREATE INDEX IF NOT EXISTS idx_generation_jobs_claimable
   ON generation_jobs(status, run_after, priority, created_at);
 CREATE INDEX IF NOT EXISTS idx_generation_jobs_project
   ON generation_jobs(project_id, status, type);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_project_email_notifications_unique
+  ON project_email_notifications(project_id, normalized_email);
+CREATE INDEX IF NOT EXISTS idx_project_email_notifications_claimable
+  ON project_email_notifications(project_id, status, requested_at);
 `;

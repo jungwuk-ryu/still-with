@@ -166,6 +166,7 @@ export type GenerationJobType =
   | "pet-video"
   | "video-postprocess"
   | "quality-evaluation"
+  | "completion-email"
   | "conversation";
 
 export type GenerationJobStatus =

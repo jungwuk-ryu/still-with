@@ -16,11 +16,6 @@ export default async function LoadingPage({
     return (
       <main className="app-shell app-shell-centered">
         <section className="progress-panel" aria-labelledby="loading-title">
-          <div className="ambient-memory" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </div>
           <p className="eyebrow">Not found</p>
           <h1 id="loading-title">This memory could not be found.</h1>
           <p className="panel-subtitle">

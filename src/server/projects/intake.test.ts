@@ -18,7 +18,8 @@ import {
   getProjectBundle,
   getLoadingStage,
   getPublicProjectStatus,
-  submitProjectClarification
+  submitProjectClarification,
+  updateProjectLifecycle
 } from ".";
 
 let db: DatabaseClient | null = null;
@@ -66,7 +67,7 @@ describe("intake project flow", () => {
     expect(result.warning).toBeNull();
     expect(bundle?.uploadedImages).toHaveLength(3);
     expect(bundle?.petProfile).toBeNull();
-    expect(bundle?.project.currentStage).toBe("Looking through your memories");
+    expect(bundle?.project.currentStage).toBe("Waking the memory");
     const analysisJobCount = context.db
       .prepare(
         "SELECT COUNT(*) AS count FROM generation_jobs WHERE project_id = ? AND type = 'pet-analysis'"
@@ -95,7 +96,7 @@ describe("intake project flow", () => {
     );
 
     expect(clarified.status).toBe("analyzing");
-    expect(clarified.currentStage).toBe("Finding what feels familiar");
+    expect(clarified.currentStage).toBe("Following the familiar trace");
     expect(clarified.selectedPetId).toBeNull();
     const clarificationJob = context.db
       .prepare(
@@ -196,7 +197,7 @@ describe("intake project flow", () => {
       db: context.db
     });
 
-    expect(publicStatus?.stage.title).toBe("Making the space feel calm");
+    expect(publicStatus?.stage.title).toBe("Stepping into the dream");
     expect(publicStatus?.retry?.message).toContain(
       "This is taking a little longer than expected."
     );
@@ -219,7 +220,8 @@ describe("intake project flow", () => {
         spatialPrompt: "A high-fidelity reconstructed living room.",
         seedImageUrls: [
           "/api/storage/projects/project-1/space-seeds/front.png",
-          "/api/storage/projects/project-1/space-seeds/left.png"
+          "/api/storage/projects/project-1/space-seeds/left.png",
+          "/api/storage/projects/project-1/space-seeds/right.png"
         ],
         seedPromptVersion: SPACE_RECONSTRUCTION_PROMPT_VERSION,
         status: "generating_seed"
@@ -271,6 +273,38 @@ describe("intake project flow", () => {
     expect(
       getPublicProjectStatus(result.project.id, { db: context.db })?.spacePreviewImages
     ).toEqual([]);
+  });
+
+  it("uses stage-aware public copy for failed pet generation", async () => {
+    const context = await createTestContext();
+    const result = await createProjectFromUploads(
+      [createImageUpload("one.jpg"), createImageUpload("two.jpg")],
+      context
+    );
+
+    updateProjectLifecycle(
+      result.project.id,
+      {
+        status: "failed",
+        currentStage: getLoadingStage(4).title,
+        currentStepIndex: 4,
+        errorCode: "PET_VIDEO_FAILED",
+        errorMessage: "provider timed out with internal details"
+      },
+      context.db
+    );
+
+    const publicStatus = getPublicProjectStatus(result.project.id, {
+      db: context.db
+    });
+
+    expect(publicStatus?.stage.title).toBe("Bringing back a gentle presence");
+    expect(publicStatus?.error).toEqual({
+      code: "PET_VIDEO_FAILED",
+      message:
+        "The room was prepared, but the gentle presence could not be completed."
+    });
+    expect(publicStatus?.error?.message).not.toContain("provider");
   });
 
   it("cleans up partial upload state when storage fails", async () => {

@@ -141,6 +141,50 @@ describe("OpenAISceneSeedGenerator", () => {
     });
   });
 
+  it("times out returned image downloads instead of waiting indefinitely", async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "still-with-openai-seeds-"));
+    const storage = createLocalStorageDriver(path.join(tmpDir, "uploads"));
+    const fetchImpl: typeof fetch = async (url, init = {}) => {
+      if (String(url) === "https://api.openai.com/v1/images/generations") {
+        return new Response(
+          JSON.stringify({
+            data: [{ url: "https://openai.example/generated.png" }]
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      return new Promise<Response>((_resolve, reject) => {
+        const signal = init.signal;
+
+        if (signal?.aborted) {
+          reject(new Error("aborted"));
+          return;
+        }
+
+        signal?.addEventListener("abort", () => reject(new Error("aborted")), {
+          once: true
+        });
+      });
+    };
+    const generator = new OpenAISceneSeedGenerator({
+      apiKey: "test-key",
+      fetchImpl,
+      storage,
+      downloadTimeoutMs: 1
+    });
+
+    await expect(
+      generator.generateSeed({
+        projectId: "project-1",
+        sceneClusterId: "scene-1",
+        view: "front",
+        prompt: "A quiet room.",
+        sourceImageUrls: []
+      })
+    ).rejects.toThrow("OpenAI scene seed image download timed out after 1 ms.");
+  });
+
   it("falls back to prompt generation when image edits are rejected", async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "still-with-openai-seeds-"));
     const storage = createLocalStorageDriver(path.join(tmpDir, "uploads"));
@@ -296,6 +340,81 @@ describe("OpenAISceneSeedGenerator", () => {
       "OpenAI scene seed edit generation failed with HTTP 400 request_id=req-contract invalid_request_error: Unsupported parameter: image"
     );
     expect(calls).toEqual(["https://api.openai.com/v1/images/edits"]);
+  });
+
+  it("times out image generation requests instead of waiting indefinitely", async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "still-with-openai-seeds-"));
+    const storage = createLocalStorageDriver(path.join(tmpDir, "uploads"));
+    const fetchImpl: typeof fetch = async (_url, init = {}) =>
+      new Promise<Response>((_resolve, reject) => {
+        const signal = init.signal;
+
+        if (signal?.aborted) {
+          reject(new Error("aborted"));
+          return;
+        }
+
+        signal?.addEventListener("abort", () => reject(new Error("aborted")), {
+          once: true
+        });
+      });
+    const generator = new OpenAISceneSeedGenerator({
+      apiKey: "test-key",
+      fetchImpl,
+      storage,
+      requestTimeoutMs: 1
+    });
+
+    await expect(
+      generator.generateSeed({
+        projectId: "project-1",
+        sceneClusterId: "scene-1",
+        view: "front",
+        prompt: "A quiet room.",
+        sourceImageUrls: []
+      })
+    ).rejects.toThrow(
+      "OpenAI scene seed prompt generation timed out after 1 ms."
+    );
+  });
+
+  it("times out image edit requests instead of waiting indefinitely", async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "still-with-openai-seeds-"));
+    const storage = createLocalStorageDriver(path.join(tmpDir, "uploads"));
+    await storage.putObject({
+      key: "projects/project-1/uploads/reference.jpg",
+      body: "reference-image",
+      contentType: "image/jpeg"
+    });
+    const fetchImpl: typeof fetch = async (_url, init = {}) =>
+      new Promise<Response>((_resolve, reject) => {
+        const signal = init.signal;
+
+        if (signal?.aborted) {
+          reject(new Error("aborted"));
+          return;
+        }
+
+        signal?.addEventListener("abort", () => reject(new Error("aborted")), {
+          once: true
+        });
+      });
+    const generator = new OpenAISceneSeedGenerator({
+      apiKey: "test-key",
+      fetchImpl,
+      storage,
+      requestTimeoutMs: 1
+    });
+
+    await expect(
+      generator.generateSeed({
+        projectId: "project-1",
+        sceneClusterId: "scene-1",
+        view: "front",
+        prompt: "A quiet room.",
+        sourceImageUrls: ["/api/storage/projects/project-1/uploads/reference.jpg"]
+      })
+    ).rejects.toThrow("OpenAI scene seed edit generation timed out after 1 ms.");
   });
 
   it("rejects unsupported OpenAI image payloads", async () => {

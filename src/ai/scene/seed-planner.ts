@@ -17,6 +17,8 @@ export const HORIZONTAL_SCENE_VIEWS: Array<{
   { view: "back", azimuth: 180 }
 ];
 
+export const MAX_SPACE_PREVIEW_IMAGES = 2;
+
 const ABSENCE_REQUIREMENT =
   "The space must be completely empty of pets, people, and all other animals.";
 
@@ -78,7 +80,7 @@ export function planSceneSeeds(input: PlanSceneSeedsInput): SceneSeedPlan {
         sourceSpatialPrompt,
         worldPrompt,
         seedPromptVersion: SPACE_RECONSTRUCTION_PROMPT_VERSION,
-        seedImages: directImages.slice(0, HORIZONTAL_SCENE_VIEWS.length)
+        seedImages: directImages.slice(0, MAX_SPACE_PREVIEW_IMAGES)
       };
     }
   }
@@ -106,13 +108,15 @@ export function planSceneSeeds(input: PlanSceneSeedsInput): SceneSeedPlan {
     sourceSpatialPrompt,
     worldPrompt,
     seedPromptVersion: SPACE_RECONSTRUCTION_PROMPT_VERSION,
-    seedImages: HORIZONTAL_SCENE_VIEWS.map((direction) => ({
-      view: direction.view,
-      azimuth: direction.azimuth,
-      url: null,
-      sourceImageId: null,
-      prompt: buildSceneSeedPrompt(input.cluster, direction.view)
-    }))
+    seedImages: HORIZONTAL_SCENE_VIEWS.slice(0, MAX_SPACE_PREVIEW_IMAGES).map(
+      (direction) => ({
+        view: direction.view,
+        azimuth: direction.azimuth,
+        url: null,
+        sourceImageId: null,
+        prompt: buildSceneSeedPrompt(input.cluster, direction.view)
+      })
+    )
   };
 }
 

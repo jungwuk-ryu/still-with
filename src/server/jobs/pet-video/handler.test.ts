@@ -261,6 +261,161 @@ describe("handlePetVideoJob", () => {
     });
   });
 
+  it("limits remote motion generation for the demo and falls back for remaining clips", async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "still-with-pet-video-"));
+    db = openDatabase(path.join(tmpDir, "test.sqlite"));
+    const storage = new LocalStorageDriver(path.join(tmpDir, "storage"));
+    const project = createProjectRecord({}, db);
+    const petProfile = createTestPetProfile(project.id);
+    upsertPetProfileRecord(petProfile, db);
+    updateProjectSelectedPet(project.id, petProfile.id, db);
+    await seedMotionKeyframe(storage, project.id, petProfile.id, "stand_idle");
+    await seedMotionKeyframe(storage, project.id, petProfile.id, "sit");
+    const calls: string[] = [];
+    const veoProvider: VeoProvider = {
+      providerName: "veo",
+      async createMotionClip(input) {
+        calls.push(input.motionKey);
+        return {
+          operationId: `operation-${input.motionKey}`,
+          status: "succeeded",
+          motionClip: null,
+          raw: {}
+        };
+      },
+      async getMotionClip() {
+        throw new Error("not reached");
+      },
+      async downloadMotionClipContent() {
+        return Buffer.from("fake veo mp4");
+      }
+    };
+    const job = createGenerationJob(
+      {
+        projectId: project.id,
+        type: "pet-video",
+        payload: {
+          petProfile: petProfile as unknown as JsonValue,
+          motionKeys: ["stand_idle", "sit", "walk_small"]
+        }
+      },
+      db
+    );
+
+    const result = await handlePetVideoJob(job, {
+      db,
+      storage,
+      veoProvider,
+      soraProvider: null,
+      pollAttempts: 0
+    });
+    const clips = Object.fromEntries(
+      listMotionClipRecords(project.id, db).map((clip) => [
+        clip.motionKey,
+        clip
+      ])
+    );
+
+    expect(calls).toEqual(["stand_idle", "sit"]);
+    expect(clips.stand_idle.status).toBe("ready");
+    expect(clips.stand_idle.providerName).toBe("veo");
+    expect(clips.sit.status).toBe("ready");
+    expect(clips.sit.providerName).toBe("veo");
+    expect(clips.walk_small.status).toBe("ready");
+    expect(clips.walk_small.providerName).toBe("fallback");
+    expect(clips.walk_small.providerErrorMessage).toContain(
+      "remote pet motion generation is limited"
+    );
+    expect(result).toMatchObject({
+      veo: {
+        attempted: true,
+        completedCount: 2,
+        failedCount: 0
+      },
+      fallback: {
+        count: 1,
+        failures: [
+          {
+            motionKey: "walk_small",
+            providerName: "fallback"
+          }
+        ]
+      }
+    });
+  });
+
+  it("aborts slow remote providers and falls back", async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "still-with-pet-video-"));
+    db = openDatabase(path.join(tmpDir, "test.sqlite"));
+    const storage = new LocalStorageDriver(path.join(tmpDir, "storage"));
+    const project = createProjectRecord({}, db);
+    const petProfile = createTestPetProfile(project.id);
+    upsertPetProfileRecord(petProfile, db);
+    updateProjectSelectedPet(project.id, petProfile.id, db);
+    let aborted = false;
+    const veoProvider: VeoProvider = {
+      providerName: "veo",
+      async createMotionClip(input) {
+        return new Promise((resolve, reject) => {
+          input.context?.signal?.addEventListener(
+            "abort",
+            () => {
+              aborted = true;
+              reject(new Error("aborted by signal"));
+            },
+            { once: true }
+          );
+        });
+      },
+      async getMotionClip() {
+        throw new Error("not reached");
+      },
+      async downloadMotionClipContent() {
+        throw new Error("not reached");
+      }
+    };
+    const job = createGenerationJob(
+      {
+        projectId: project.id,
+        type: "pet-video",
+        payload: {
+          petProfile: petProfile as unknown as JsonValue,
+          motionKeys: ["stand_idle"]
+        }
+      },
+      db
+    );
+
+    const result = await handlePetVideoJob(job, {
+      db,
+      storage,
+      veoProvider,
+      soraProvider: null,
+      remoteAttemptTimeoutMs: 25
+    });
+    const [clip] = listMotionClipRecords(project.id, db);
+
+    expect(aborted).toBe(true);
+    expect(clip.status).toBe("ready");
+    expect(clip.providerName).toBe("veo");
+    expect(clip.providerStatus).toBe("failed");
+    expect(clip.providerErrorMessage).toContain(
+      "veo motion generation timed out"
+    );
+    expect(clip.rawVideoUrl).toBeNull();
+    expect(clip.processedVideoUrl).toContain("/pet/fallback/stand_idle.json");
+    expect(result).toMatchObject({
+      veo: {
+        attempted: true,
+        failedCount: 1,
+        fallbackCount: 1
+      },
+      fallback: {
+        count: 1
+      }
+    });
+  });
+
   it("falls through to Sora when Veo generation fails", async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "still-with-pet-video-"));
     db = openDatabase(path.join(tmpDir, "test.sqlite"));
@@ -544,7 +699,7 @@ async function seedMotionKeyframe(
   storage: LocalStorageDriver,
   projectId: string,
   petProfileId: string,
-  motionKey: "stand_idle" | "look_at_camera"
+  motionKey: "stand_idle" | "sit" | "look_at_camera"
 ): Promise<string> {
   const stored = await storage.putObject({
     key: `projects/${projectId}/pet/keyframes/${motionKey}.svg`,

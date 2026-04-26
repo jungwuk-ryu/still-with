@@ -1,10 +1,16 @@
-import type { GenerationJob, JsonValue } from "@/types";
+import type { GenerationJob, JsonValue, ProjectStatus } from "@/types";
 import {
   claimNextGenerationJob,
   completeGenerationJob,
   failGenerationJob
 } from "./repository";
 import type { DatabaseClient } from "@/server/db";
+import { getProjectRecord } from "@/server/db";
+import { updateProjectLifecycle } from "@/server/projects/repository";
+import {
+  getLoadingStage,
+  getStageIndexForJobType
+} from "@/server/projects/stages";
 
 export type GenerationJobHandler = (job: GenerationJob) => Promise<JsonValue | null>;
 
@@ -76,7 +82,7 @@ export class InProcessGenerationWorker {
     const handler = this.options.handlers[job.type];
 
     if (!handler) {
-      failGenerationJob(
+      const failedJob = failGenerationJob(
         {
           jobId: job.id,
           errorCode: "NO_JOB_HANDLER",
@@ -85,6 +91,9 @@ export class InProcessGenerationWorker {
         },
         this.options.db
       );
+      if (failedJob?.status === "failed") {
+        markProjectFailedFromJob(failedJob, this.options.db);
+      }
       this.schedule(0);
       return;
     }
@@ -93,7 +102,7 @@ export class InProcessGenerationWorker {
       const result = await handler(job);
       completeGenerationJob(job.id, result, this.options.db);
     } catch (error) {
-      failGenerationJob(
+      const failedJob = failGenerationJob(
         {
           jobId: job.id,
           errorCode: "JOB_HANDLER_ERROR",
@@ -101,8 +110,45 @@ export class InProcessGenerationWorker {
         },
         this.options.db
       );
+
+      if (failedJob?.status === "failed") {
+        markProjectFailedFromJob(failedJob, this.options.db);
+      }
     }
 
     this.schedule(0);
   }
+}
+
+function markProjectFailedFromJob(
+  job: GenerationJob,
+  db: DatabaseClient
+): void {
+  if (job.type === "conversation" || job.type === "completion-email") {
+    return;
+  }
+
+  const project = getProjectRecord(job.projectId, db);
+
+  if (!project || isTerminalProjectStatus(project.status)) {
+    return;
+  }
+
+  const stage = getLoadingStage(getStageIndexForJobType(job.type));
+
+  updateProjectLifecycle(
+    job.projectId,
+    {
+      status: "failed",
+      currentStage: stage.title,
+      currentStepIndex: stage.index,
+      errorCode: `${job.type.toUpperCase().replaceAll("-", "_")}_FAILED`,
+      errorMessage: job.errorMessage ?? "Generation job failed."
+    },
+    db
+  );
+}
+
+function isTerminalProjectStatus(status: ProjectStatus): boolean {
+  return status === "ready" || status === "failed" || status === "cancelled";
 }

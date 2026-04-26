@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   HORIZONTAL_SCENE_VIEWS,
+  MAX_SPACE_PREVIEW_IMAGES,
   RECONSTRUCTED_SPACE_IMAGE_PROMPT,
   planSceneSeeds
 } from "./seed-planner";
@@ -8,7 +9,7 @@ import type { ClassifiedSceneCluster } from "./types";
 import type { SceneCluster, UploadedImage } from "@/types";
 
 describe("scene seed planner", () => {
-  it("uses only horizontal front/left/right/back generated seed views by default", () => {
+  it("uses at most two generated space preview seed views by default", () => {
     const plan = planSceneSeeds({
       cluster: createSceneCluster(),
       uploadedImages: [createUploadedImage("image-1")]
@@ -21,12 +22,8 @@ describe("scene seed planner", () => {
       "back"
     ]);
     expect(plan.strategy).toBe("generated-multiview");
-    expect(plan.seedImages.map((seed) => seed.view)).toEqual([
-      "front",
-      "left",
-      "right",
-      "back"
-    ]);
+    expect(plan.seedImages).toHaveLength(MAX_SPACE_PREVIEW_IMAGES);
+    expect(plan.seedImages.map((seed) => seed.view)).toEqual(["front", "left"]);
     expect(plan.seedImages[0]?.prompt).toContain(
       "empty of pets, people, and all other animals"
     );

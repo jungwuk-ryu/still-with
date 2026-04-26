@@ -1,6 +1,8 @@
 import dns from "node:dns/promises";
 import type { StorageDriver } from "@/server/storage";
 
+const DEFAULT_REMOTE_PROVIDER_IMAGE_TIMEOUT_MS = 30_000;
+
 export interface LoadedProviderImage {
   body: Buffer;
   contentType: string;
@@ -14,6 +16,7 @@ export async function loadProviderImage(
     storage: StorageDriver;
     fetchImpl?: typeof fetch;
     lookupRemoteAddresses?: LookupRemoteAddresses;
+    remoteFetchTimeoutMs?: number;
   }
 ): Promise<LoadedProviderImage> {
   const storageKey = storageKeyFromProviderImageUrl(imageUrl, options.projectId);
@@ -38,7 +41,11 @@ export async function loadProviderImage(
   await assertRemoteProviderImageUrlAllowed(imageUrl, {
     lookupRemoteAddresses: options.lookupRemoteAddresses
   });
-  const response = await (options.fetchImpl ?? fetch)(imageUrl);
+  const response = await fetchRemoteProviderImage(
+    imageUrl,
+    options.fetchImpl ?? fetch,
+    options.remoteFetchTimeoutMs ?? DEFAULT_REMOTE_PROVIDER_IMAGE_TIMEOUT_MS
+  );
 
   if (!response.ok) {
     throw new Error(`Remote provider image fetch failed with HTTP ${response.status}.`);
@@ -49,6 +56,39 @@ export async function loadProviderImage(
     contentType: response.headers.get("content-type") ?? "application/octet-stream",
     filename: "remote-image"
   };
+}
+
+async function fetchRemoteProviderImage(
+  imageUrl: string,
+  fetchImpl: typeof fetch,
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController();
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`Remote provider image fetch timed out after ${timeoutMs} ms.`));
+    }, timeoutMs);
+  });
+  const request = (async () => {
+    const response = await fetchImpl(imageUrl, { signal: controller.signal });
+    const body = await response.arrayBuffer();
+
+    return new Response(body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: new Headers(response.headers)
+    });
+  })();
+
+  try {
+    return await Promise.race([request, timeout]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
 }
 
 export function storageKeyFromProviderImageUrl(

@@ -95,7 +95,8 @@ export function createSceneClassificationHandler(
                 seedStrategy: primary.seedStrategy,
                 directWorldInputImageIds: primary.directWorldInputImageIds
               },
-              priority: job.priority
+              priority: job.priority,
+              maxAttempts: 1
             },
             options.db
           );

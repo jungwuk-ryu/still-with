@@ -11,50 +11,50 @@ export interface LoadingStage {
 export const LOADING_STAGES: LoadingStage[] = [
   {
     index: 0,
-    title: "Looking through your memories",
-    description: "Finding the moments, colors, and places that appear in your photos.",
+    title: "Waking the memory",
+    description: "Letting the familiar colors and shapes return from your photos.",
     projectStatuses: ["uploading", "analyzing"],
     jobTypes: ["pet-analysis", "scene-classification"]
   },
   {
     index: 1,
-    title: "Finding what feels familiar",
-    description: "Noticing the little details that made them feel like them.",
+    title: "Following the familiar trace",
+    description: "Looking for the small details that still feel close.",
     projectStatuses: ["analyzing", "clarification_required"],
     jobTypes: ["pet-selection"]
   },
   {
     index: 2,
-    title: "Remembering the light",
-    description: "Shaping the room with the warmth and light from your photos.",
+    title: "Letting the room come back",
+    description: "Drawing out the light, walls, and quiet corners from the images.",
     projectStatuses: ["preparing_space"],
     jobTypes: ["space-seed"]
   },
   {
     index: 3,
-    title: "Making the space feel calm",
-    description: "Giving the memory space a quiet sense of depth.",
+    title: "Stepping into the dream",
+    description: "Giving the space depth without losing its softness.",
     projectStatuses: ["preparing_space"],
     jobTypes: ["worldlabs-generation"]
   },
   {
     index: 4,
-    title: "Preparing a gentle presence",
-    description: "Creating soft movement that belongs naturally in the space.",
+    title: "Bringing back a gentle presence",
+    description: "Preparing a small movement that belongs naturally in the room.",
     projectStatuses: ["preparing_pet"],
     jobTypes: ["pet-keyframe", "pet-video", "video-postprocess"]
   },
   {
     index: 5,
-    title: "Checking the feeling",
-    description: "Making sure the result feels close, respectful, and gentle.",
+    title: "Listening for the right feeling",
+    description: "Keeping the result close, quiet, and respectful.",
     projectStatuses: ["preparing_pet"],
     jobTypes: ["quality-evaluation"]
   },
   {
     index: 6,
-    title: "Ready when you are",
-    description: "Your memory space is ready to enter.",
+    title: "The door is open",
+    description: "Your memory space is ready when you are.",
     projectStatuses: ["ready"],
     jobTypes: []
   }

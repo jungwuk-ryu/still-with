@@ -2,7 +2,12 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createProjectRecord, openDatabase, type DatabaseClient } from "@/server/db";
+import {
+  createProjectRecord,
+  getProjectRecord,
+  openDatabase,
+  type DatabaseClient
+} from "@/server/db";
 import { createGenerationJob } from "@/server/jobs/repository";
 import {
   createSceneClusterRecord,
@@ -29,7 +34,7 @@ afterEach(async () => {
 });
 
 describe("space seed handler", () => {
-  it("generates front/left/right/back seed images and enqueues World Labs", async () => {
+  it("generates at most two seed images and enqueues World Labs", async () => {
     db = await createTestDatabase();
     const project = createProjectRecord({}, db);
     insertUploadedImage(db, project.id, "image-1", 0);
@@ -65,8 +70,8 @@ describe("space seed handler", () => {
       strategy: "generated-multiview"
     });
 
-    expect(seenViews).toEqual(["front", "left", "right", "back"]);
-    expect(getSceneClusterRecord(sceneCluster.id, db)?.seedImageUrls).toHaveLength(4);
+    expect(seenViews).toEqual(["front", "left"]);
+    expect(getSceneClusterRecord(sceneCluster.id, db)?.seedImageUrls).toHaveLength(2);
     expect(getSceneClusterRecord(sceneCluster.id, db)?.status).toBe("waiting_for_world");
     const nextJob = db
       .prepare(
@@ -131,13 +136,11 @@ describe("space seed handler", () => {
 
     await handler(job);
 
-    expect(persistedCountsBeforeNextGeneration).toEqual([0, 1, 2, 3]);
+    expect(persistedCountsBeforeNextGeneration).toEqual([0, 1]);
     expect(getSceneClusterRecord(sceneCluster.id, db)).toMatchObject({
       seedImageUrls: [
         "/api/storage/projects/project-1/space-seeds/front.png",
-        "/api/storage/projects/project-1/space-seeds/left.png",
-        "/api/storage/projects/project-1/space-seeds/right.png",
-        "/api/storage/projects/project-1/space-seeds/back.png"
+        "/api/storage/projects/project-1/space-seeds/left.png"
       ],
       seedPromptVersion: SPACE_RECONSTRUCTION_PROMPT_VERSION,
       status: "waiting_for_world"
@@ -179,12 +182,10 @@ describe("space seed handler", () => {
 
     await handler(job);
 
-    expect(seenViews).toEqual(["front", "left", "right", "back"]);
+    expect(seenViews).toEqual(["front", "left"]);
     expect(getSceneClusterRecord(sceneCluster.id, db)?.seedImageUrls).toEqual([
       "/api/storage/projects/project-1/space-seeds/front.png",
-      "/api/storage/projects/project-1/space-seeds/left.png",
-      "/api/storage/projects/project-1/space-seeds/right.png",
-      "/api/storage/projects/project-1/space-seeds/back.png"
+      "/api/storage/projects/project-1/space-seeds/left.png"
     ]);
   });
 
@@ -340,13 +341,11 @@ describe("space seed handler", () => {
     const result = await handler(job);
 
     expect(JSON.stringify(result)).not.toContain("reusedExistingSeeds");
-    expect(seenViews).toEqual(["front", "left", "right", "back"]);
+    expect(seenViews).toEqual(["front", "left"]);
     expect(getSceneClusterRecord(sceneCluster.id, db)).toMatchObject({
       seedImageUrls: [
         "/api/storage/projects/project-1/space-seeds/front.png",
-        "/api/storage/projects/project-1/space-seeds/left.png",
-        "/api/storage/projects/project-1/space-seeds/right.png",
-        "/api/storage/projects/project-1/space-seeds/back.png"
+        "/api/storage/projects/project-1/space-seeds/left.png"
       ],
       seedPromptVersion: SPACE_RECONSTRUCTION_PROMPT_VERSION,
       spatialPrompt: "A quiet favorite corner.",
@@ -394,13 +393,11 @@ describe("space seed handler", () => {
     expect(result).toMatchObject({
       seedImageUrls: [
         "/api/storage/projects/project-1/space-seeds/front.png",
-        "/api/storage/projects/project-1/space-seeds/left.png",
-        "/api/storage/projects/project-1/space-seeds/right.png",
-        "/api/storage/projects/project-1/space-seeds/back.png"
+        "/api/storage/projects/project-1/space-seeds/left.png"
       ]
     });
     expect(JSON.stringify(result)).not.toContain("reusedExistingSeeds");
-    expect(seenViews).toEqual(["front", "left", "right", "back"]);
+    expect(seenViews).toEqual(["front", "left"]);
     expect(getSceneClusterRecord(sceneCluster.id, db)).toMatchObject({
       worldLabsOperationId: null,
       worldId: null,
@@ -408,7 +405,7 @@ describe("space seed handler", () => {
     });
   });
 
-  it("marks the scene failed when seed generation throws", async () => {
+  it("marks the project and scene failed when final seed generation throws", async () => {
     db = await createTestDatabase();
     const project = createProjectRecord({}, db);
     insertUploadedImage(db, project.id, "image-1", 0);
@@ -445,6 +442,13 @@ describe("space seed handler", () => {
 
     await expect(handler(job)).rejects.toThrow("seed generation unavailable");
     expect(getSceneClusterRecord(sceneCluster.id, db)?.status).toBe("failed");
+    expect(getProjectRecord(project.id, db)).toMatchObject({
+      status: "failed",
+      currentStage: "Letting the room come back",
+      currentStepIndex: 2,
+      errorCode: "SPACE_SEED_FAILED",
+      errorMessage: "seed generation unavailable"
+    });
   });
 
   it("keeps the scene retryable when seed generation fails before final attempt", async () => {
@@ -483,6 +487,7 @@ describe("space seed handler", () => {
 
     await expect(handler(job)).rejects.toThrow("seed generation unavailable");
     expect(getSceneClusterRecord(sceneCluster.id, db)?.status).toBe("generating_seed");
+    expect(getProjectRecord(project.id, db)?.status).not.toBe("failed");
   });
 
   it("fails fast when sceneClusterId is missing", async () => {

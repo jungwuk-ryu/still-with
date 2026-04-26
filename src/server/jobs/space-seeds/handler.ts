@@ -9,6 +9,8 @@ import {
 import { createGenerationJob } from "@/server/jobs/repository";
 import type { GenerationJobHandler } from "@/server/jobs/worker";
 import type { DatabaseClient } from "@/server/db";
+import { updateProjectLifecycle } from "@/server/projects/repository";
+import { getLoadingStage } from "@/server/projects/stages";
 import {
   getSceneClusterRecord,
   getUploadedImagesByIds,
@@ -183,10 +185,23 @@ export function createSpaceSeedHandler(
       } as JsonValue;
     } catch (error) {
       if (isFinalJobAttempt(job)) {
+        const stage = getLoadingStage(2);
         updateSceneClusterRecord(
           sceneCluster.id,
           {
             status: "failed"
+          },
+          options.db
+        );
+        updateProjectLifecycle(
+          job.projectId,
+          {
+            status: "failed",
+            currentStage: stage.title,
+            currentStepIndex: stage.index,
+            errorCode: "SPACE_SEED_FAILED",
+            errorMessage:
+              error instanceof Error ? error.message : "Space seed generation failed."
           },
           options.db
         );

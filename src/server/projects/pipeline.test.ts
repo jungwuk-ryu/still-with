@@ -57,7 +57,7 @@ describe("project generation pipeline", () => {
     const readyProject = markProjectReadyIfAssetsComplete(project.id, db);
 
     expect(readyProject?.status).toBe("ready");
-    expect(readyProject?.currentStage).toBe("Ready when you are");
+    expect(readyProject?.currentStage).toBe("The door is open");
     expect(readyProject?.completedAt).toEqual(expect.any(String));
   });
 });

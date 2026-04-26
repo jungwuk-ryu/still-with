@@ -12,12 +12,16 @@ import type {
 const OPENAI_IMAGE_GENERATIONS_URL = "https://api.openai.com/v1/images/generations";
 const OPENAI_IMAGE_EDITS_URL = "https://api.openai.com/v1/images/edits";
 const DEFAULT_IMAGE_MODEL = "gpt-image-2";
+const DEFAULT_IMAGE_REQUEST_TIMEOUT_MS = 150_000;
+const DEFAULT_IMAGE_DOWNLOAD_TIMEOUT_MS = 30_000;
 
 export interface OpenAISceneSeedGeneratorOptions {
   apiKey?: string;
   model?: string;
   fetchImpl?: typeof fetch;
   storage?: StorageDriver;
+  requestTimeoutMs?: number;
+  downloadTimeoutMs?: number;
 }
 
 export class OpenAISceneSeedGenerator implements SceneSeedGenerator {
@@ -82,7 +86,13 @@ export class OpenAISceneSeedGenerator implements SceneSeedGenerator {
       `${input.view}.${extension}`
     );
 
-    const body = image.bytes ?? (await fetchRemoteImage(image.url, this.fetchImpl));
+    const body =
+      image.bytes ??
+      (await fetchRemoteImage(
+        image.url,
+        this.fetchImpl,
+        this.options.downloadTimeoutMs ?? DEFAULT_IMAGE_DOWNLOAD_TIMEOUT_MS
+      ));
     const stored = await putGeneratedSeedImage(this.storage, {
       key,
       body,
@@ -101,21 +111,29 @@ export class OpenAISceneSeedGenerator implements SceneSeedGenerator {
     apiKey: string,
     input: SceneSeedGeneratorInput
   ): Promise<Response> {
-    return this.fetchImpl(OPENAI_IMAGE_GENERATIONS_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
+    return fetchWithTimeout(
+      this.fetchImpl,
+      OPENAI_IMAGE_GENERATIONS_URL,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: this.options.model ?? process.env.OPENAI_IMAGE_MODEL ?? DEFAULT_IMAGE_MODEL,
+          prompt: input.prompt,
+          n: 1,
+          size: input.view === "panorama" ? "2048x1024" : "1536x1024",
+          quality: "high",
+          background: "opaque"
+        })
       },
-      body: JSON.stringify({
-        model: this.options.model ?? process.env.OPENAI_IMAGE_MODEL ?? DEFAULT_IMAGE_MODEL,
-        prompt: input.prompt,
-        n: 1,
-        size: input.view === "panorama" ? "2048x1024" : "1536x1024",
-        quality: "high",
-        background: "opaque"
-      })
-    });
+      {
+        label: "OpenAI scene seed prompt generation",
+        timeoutMs: this.options.requestTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS
+      }
+    );
   }
 
   private async generateImageEdit(
@@ -149,13 +167,21 @@ export class OpenAISceneSeedGenerator implements SceneSeedGenerator {
       );
     }
 
-    return this.fetchImpl(OPENAI_IMAGE_EDITS_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`
+    return fetchWithTimeout(
+      this.fetchImpl,
+      OPENAI_IMAGE_EDITS_URL,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`
+        },
+        body
       },
-      body
-    });
+      {
+        label: "OpenAI scene seed edit generation",
+        timeoutMs: this.options.requestTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS
+      }
+    );
   }
 }
 
@@ -271,19 +297,76 @@ function extractImagePayload(raw: unknown): {
 
 async function fetchRemoteImage(
   url: string | undefined,
-  fetchImpl: typeof fetch
+  fetchImpl: typeof fetch,
+  timeoutMs: number
 ): Promise<Buffer> {
   if (!url) {
     throw new Error("OpenAI scene seed generation did not return a fetchable image.");
   }
 
-  const response = await fetchImpl(url);
+  const response = await fetchWithTimeout(fetchImpl, url, undefined, {
+    label: "OpenAI scene seed image download",
+    timeoutMs
+  });
 
   if (!response.ok) {
     throw new Error(`Failed to store generated scene seed image with HTTP ${response.status}.`);
   }
 
   return Buffer.from(await response.arrayBuffer());
+}
+
+async function fetchWithTimeout(
+  fetchImpl: typeof fetch,
+  url: string,
+  init:
+    | (RequestInit & {
+        duplex?: "half";
+      })
+    | undefined,
+  options: { label: string; timeoutMs: number }
+): Promise<Response> {
+  const controller = new AbortController();
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      controller.abort();
+      reject(
+        new Error(
+          `${options.label} timed out after ${formatTimeout(options.timeoutMs)}.`
+        )
+      );
+    }, options.timeoutMs);
+  });
+  const request = (async () => {
+    const response = await fetchImpl(url, {
+      ...init,
+      signal: controller.signal
+    });
+    const body = await response.arrayBuffer();
+
+    return new Response(body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: new Headers(response.headers)
+    });
+  })();
+
+  try {
+    return await Promise.race([request, timeout]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
+function formatTimeout(timeoutMs: number): string {
+  if (timeoutMs % 1000 === 0) {
+    return `${timeoutMs / 1000} seconds`;
+  }
+
+  return `${timeoutMs} ms`;
 }
 
 function azimuthForView(view: SceneSeedGeneratorInput["view"]): number | null {

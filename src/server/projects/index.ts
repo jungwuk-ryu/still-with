@@ -1,4 +1,5 @@
 export * from "./clarification";
+export * from "./email-notifications";
 export * from "./intake";
 export * from "./pipeline";
 export * from "./repository";

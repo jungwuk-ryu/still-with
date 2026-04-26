@@ -36,6 +36,9 @@ import { evaluateMotionClipQuality } from "@/server/jobs/quality-evaluation/eval
 import { getPetProfileRecord } from "@/server/jobs/pet-analysis/pet-profile-repository";
 import { createFallbackStillAnimationAsset } from "./fallback";
 
+const DEFAULT_REMOTE_PROVIDER_ATTEMPT_TIMEOUT_MS = 60_000;
+const DEFAULT_REMOTE_MOTION_ATTEMPT_LIMIT = 2;
+
 export interface PetVideoJobPayload {
   petProfile: PetProfile;
   motionKeys?: string[];
@@ -50,6 +53,8 @@ export interface PetVideoHandlerDeps {
   soraProvider?: SoraProvider | null;
   pollAttempts?: number;
   pollIntervalMs?: number;
+  remoteAttemptTimeoutMs?: number;
+  remoteMotionAttemptLimit?: number;
 }
 
 export async function handlePetVideoJob(
@@ -89,8 +94,17 @@ export async function handlePetVideoJob(
   let soraAttempted = false;
   let soraCompletedCount = 0;
   let soraFailedCount = 0;
+  const remoteMotionAttemptLimit = normalizeRemoteMotionAttemptLimit(
+    deps.remoteMotionAttemptLimit
+  );
 
-  for (const motionKey of motionKeys) {
+  for (let motionIndex = 0; motionIndex < motionKeys.length; motionIndex += 1) {
+    const motionKey = motionKeys[motionIndex];
+    const forcedFallbackReason = getForcedFallbackReason({
+      forceFallback: payload.forceFallback ?? false,
+      motionIndex,
+      remoteMotionAttemptLimit
+    });
     const result = await generateMotionClip({
       db,
       storage,
@@ -106,9 +120,12 @@ export async function handlePetVideoJob(
           motionKey,
           db
         )?.keyframeImageUrls ?? [],
-      forceFallback: payload.forceFallback ?? false,
+      forceFallback: Boolean(forcedFallbackReason),
+      forcedFallbackReason,
       pollAttempts: deps.pollAttempts ?? 10,
-      pollIntervalMs: deps.pollIntervalMs ?? 3_000
+      pollIntervalMs: deps.pollIntervalMs ?? 3_000,
+      remoteAttemptTimeoutMs:
+        deps.remoteAttemptTimeoutMs ?? DEFAULT_REMOTE_PROVIDER_ATTEMPT_TIMEOUT_MS
     });
 
     veoAttempted ||= result.veoAttempted;
@@ -188,8 +205,10 @@ interface GenerateMotionClipInput {
   motionKey: PetMotionKey;
   keyframeImageUrls: string[];
   forceFallback: boolean;
+  forcedFallbackReason: string | null;
   pollAttempts: number;
   pollIntervalMs: number;
+  remoteAttemptTimeoutMs: number;
 }
 
 interface GenerateMotionClipResult {
@@ -232,10 +251,11 @@ async function generateMotionClip(
   );
 
   if (input.forceFallback) {
+    const reason = input.forcedFallbackReason ?? "fallback forced for local demo";
     const fallbackClip = await applyFallbackStillAnimation(
       clip,
       input,
-      "fallback forced for local demo"
+      reason
     );
     return {
       clip: fallbackClip,
@@ -245,7 +265,7 @@ async function generateMotionClip(
       soraAttempted: false,
       soraCompleted: false,
       soraFailed: false,
-      fallbackReason: "fallback forced for local demo",
+      fallbackReason: reason,
       fallbackProviderName: "fallback"
     };
   }
@@ -350,71 +370,95 @@ async function attemptRemoteMotionProvider(
   const definition = PET_MOTION_DEFINITIONS[input.motionKey];
 
   try {
-    const operation = await provider.createMotionClip({
-      petProfile: input.petProfile,
-      motionKey: input.motionKey,
-      fromState: definition.fromState,
-      toState: definition.toState,
-      prompt: attempt.prompt,
-      keyframeImageUrls: await resolveProviderImageUrls(
-        input.keyframeImageUrls,
-        input.storage
-      ),
-      context: {
-        projectId: input.projectId
-      }
-    });
-    let clip = updateMotionClipRecord(
-      attempt.clip.id,
-      {
-        providerName: provider.providerName,
-        providerOperationId: operation.operationId,
-        providerStatus: operation.status,
-        providerErrorMessage: null,
-        status: "generating_video"
+    let clip = attempt.clip;
+    const stored = await withTimeout(
+      async (signal) => {
+        const keyframeImageUrls = await resolveProviderImageUrls(
+          input.keyframeImageUrls,
+          input.storage
+        );
+        throwIfAborted(signal);
+        const operation = await provider.createMotionClip({
+          petProfile: input.petProfile,
+          motionKey: input.motionKey,
+          fromState: definition.fromState,
+          toState: definition.toState,
+          prompt: attempt.prompt,
+          keyframeImageUrls,
+          context: {
+            projectId: input.projectId,
+            signal
+          }
+        });
+        throwIfAborted(signal);
+        clip = updateMotionClipRecord(
+          attempt.clip.id,
+          {
+            providerName: provider.providerName,
+            providerOperationId: operation.operationId,
+            providerStatus: operation.status,
+            providerErrorMessage: null,
+            status: "generating_video"
+          },
+          input.db
+        ) as MotionClip;
+        const finalOperation = await waitForProviderCompletion(
+          provider,
+          operation.operationId,
+          operation.status,
+          input,
+          signal
+        );
+
+        if (finalOperation.status !== "succeeded") {
+          const reason = `${provider.providerName} status ${finalOperation.status}`;
+          clip = updateMotionClipRecord(
+            clip.id,
+            {
+              providerStatus: finalOperation.status,
+              providerErrorMessage: reason
+            },
+            input.db
+          ) as MotionClip;
+          return { stored: null, reason: sanitizeReason(reason) };
+        }
+
+        throwIfAborted(signal);
+        const videoBody = await provider.downloadMotionClipContent(
+          finalOperation.operationId,
+          {
+            projectId: input.projectId,
+            signal
+          }
+        );
+        throwIfAborted(signal);
+
+        return {
+          stored: await input.storage.putObject({
+            key: `projects/${input.projectId}/pet/videos/${input.motionKey}-${provider.providerName}-${toStorageSafeToken(finalOperation.operationId)}.mp4`,
+            body: videoBody,
+            contentType: "video/mp4"
+          }),
+          reason: ""
+        };
       },
-      input.db
-    ) as MotionClip;
-    const finalOperation = await waitForProviderCompletion(
-      provider,
-      operation.operationId,
-      operation.status,
-      input
+      input.remoteAttemptTimeoutMs,
+      `${provider.providerName} motion generation`
     );
 
-    if (finalOperation.status !== "succeeded") {
-      const reason = `${provider.providerName} status ${finalOperation.status}`;
-      clip = updateMotionClipRecord(
-        clip.id,
-        {
-          providerStatus: finalOperation.status,
-          providerErrorMessage: reason
-        },
-        input.db
-      ) as MotionClip;
-      return { clip, completed: false, reason: sanitizeReason(reason) };
+    if (!stored.stored) {
+      return { clip, completed: false, reason: stored.reason };
     }
 
-    const videoBody = await provider.downloadMotionClipContent(
-      finalOperation.operationId,
-      {
-        projectId: input.projectId
-      }
-    );
-    const stored = await input.storage.putObject({
-      key: `projects/${input.projectId}/pet/videos/${input.motionKey}-${provider.providerName}-${toStorageSafeToken(finalOperation.operationId)}.mp4`,
-      body: videoBody,
-      contentType: "video/mp4"
-    });
     const alpha = processChromaAlpha({
-      rawVideoUrl: stored.url,
+      rawVideoUrl: stored.stored.url,
       keyframeImageUrls: input.keyframeImageUrls,
       petProfile: input.petProfile
     });
     clip = updateMotionClipRecord(
       clip.id,
       {
-        rawVideoUrl: stored.url,
+        rawVideoUrl: stored.stored.url,
         processedVideoUrl: alpha.processedVideoUrl,
         alphaVideoUrl: alpha.alphaVideoUrl,
         durationMs: attempt.requestedDurationMs,
@@ -474,7 +518,8 @@ async function waitForProviderCompletion(
   provider: MotionVideoProvider,
   operationId: string,
   initialStatus: "queued" | "running" | "succeeded" | "failed",
-  input: GenerateMotionClipInput
+  input: GenerateMotionClipInput,
+  signal: AbortSignal
 ) {
   let status = initialStatus;
 
@@ -483,14 +528,80 @@ async function waitForProviderCompletion(
       break;
     }
 
-    await new Promise((resolve) => setTimeout(resolve, input.pollIntervalMs));
+    await abortableDelay(input.pollIntervalMs, signal);
     const operation = await provider.getMotionClip(operationId, {
-      projectId: input.projectId
+      projectId: input.projectId,
+      signal
     });
     status = operation.status;
   }
 
   return { operationId, status };
+}
+
+function abortableDelay(timeoutMs: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) {
+    return Promise.reject(getAbortReason(signal));
+  }
+
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(resolve, timeoutMs);
+
+    signal.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timeoutId);
+        reject(getAbortReason(signal));
+      },
+      { once: true }
+    );
+  });
+}
+
+function throwIfAborted(signal: AbortSignal): void {
+  if (signal.aborted) {
+    throw getAbortReason(signal);
+  }
+}
+
+function getAbortReason(signal: AbortSignal): Error {
+  return signal.reason instanceof Error
+    ? signal.reason
+    : new Error("Remote pet video provider attempt was aborted.");
+}
+
+async function withTimeout<T>(
+  run: (signal: AbortSignal) => Promise<T>,
+  timeoutMs: number,
+  label: string
+): Promise<T> {
+  const controller = new AbortController();
+  const timeoutError = new Error(
+    `${label} timed out after ${timeoutMs / 1000} seconds.`
+  );
+  let timedOut = false;
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort(timeoutError);
+      reject(timeoutError);
+    }, timeoutMs);
+  });
+
+  try {
+    const operation = run(controller.signal).catch((error) => {
+      if (timedOut) {
+        throw timeoutError;
+      }
+      throw error;
+    });
+    return await Promise.race([operation, timeout]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
 }
 
 async function applyFallbackStillAnimation(
@@ -585,6 +696,29 @@ function selectVideoProviders(
   }
 
   return providers;
+}
+
+function normalizeRemoteMotionAttemptLimit(limit: number | undefined): number {
+  return Math.max(
+    0,
+    Math.floor(limit ?? DEFAULT_REMOTE_MOTION_ATTEMPT_LIMIT)
+  );
+}
+
+function getForcedFallbackReason(input: {
+  forceFallback: boolean;
+  motionIndex: number;
+  remoteMotionAttemptLimit: number;
+}): string | null {
+  if (input.forceFallback) {
+    return "fallback forced for local demo";
+  }
+
+  if (input.motionIndex >= input.remoteMotionAttemptLimit) {
+    return "remote pet motion generation is limited for this demo";
+  }
+
+  return null;
 }
 
 function resolveJobPetProfile(
