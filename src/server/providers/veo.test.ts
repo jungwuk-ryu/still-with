@@ -55,6 +55,11 @@ describe("createVeoProvider", () => {
       operationId: "models/veo-3.1-generate-preview/operations/test-op",
       status: "running"
     });
+    expect(body.parameters).toMatchObject({
+      aspectRatio: "16:9",
+      durationSeconds: 8,
+      resolution: "1080p"
+    });
     expect(body.parameters.personGeneration).toBeUndefined();
     expect(body.instances[0].image).toMatchObject({
       bytesBase64Encoded: "ZmFrZS1wbmc=",

@@ -11,12 +11,15 @@ export function createVeoProvider(options: ProviderOptions = {}): VeoProvider {
   return new VeoProviderAdapter(options);
 }
 
+const DEFAULT_VEO_VIDEO_RESOLUTION = "1080p";
+
 class VeoProviderAdapter implements VeoProvider {
   readonly providerName = "veo" as const;
 
   constructor(private readonly options: ProviderOptions) {}
 
   async createMotionClip(input: SoraMotionInput): Promise<SoraOperation> {
+    const resolution = resolveVeoResolution();
     const instance: Record<string, unknown> = {
       prompt: input.prompt
     };
@@ -37,8 +40,11 @@ class VeoProviderAdapter implements VeoProvider {
           instances: [instance],
           parameters: {
             aspectRatio: "16:9",
-            durationSeconds: chooseVeoDurationSeconds(input.motionKey),
-            resolution: "720p"
+            durationSeconds: chooseVeoDurationSeconds(
+              input.motionKey,
+              resolution
+            ),
+            resolution
           }
         }),
         signal: input.context?.signal
@@ -225,8 +231,22 @@ function mapVeoStatus(raw: VeoOperationResponse): SoraOperation["status"] {
   return "running";
 }
 
-function chooseVeoDurationSeconds(motionKey: string): 4 | 8 {
+function chooseVeoDurationSeconds(motionKey: string, resolution: string): 4 | 8 {
+  if (requiresEightSecondVeoDuration(resolution)) {
+    return 8;
+  }
+
   return motionKey === "turn_360" || motionKey === "walk_small" ? 8 : 4;
+}
+
+function requiresEightSecondVeoDuration(resolution: string): boolean {
+  const normalizedResolution = resolution.toLowerCase();
+
+  return normalizedResolution === "1080p" || normalizedResolution === "4k";
+}
+
+function resolveVeoResolution(): string {
+  return process.env.VEO_VIDEO_RESOLUTION?.trim() || DEFAULT_VEO_VIDEO_RESOLUTION;
 }
 
 function assertVeoOperationName(operationName: string): string {
