@@ -82,6 +82,14 @@ export function createWorldLabsGenerationHandler(
       let operation;
 
       try {
+        console.info("[world-generation] create world started", {
+          jobId: job.id,
+          projectId: job.projectId,
+          sceneClusterId: sceneCluster.id,
+          inputMode: payload.inputMode,
+          seedImageCount:
+            payload.seedImages?.length ?? sceneCluster.seedImageUrls.length
+        });
         operation = await provider.createWorld({
           sceneCluster,
           seedImageUrls:
@@ -95,7 +103,21 @@ export function createWorldLabsGenerationHandler(
             sceneClusterId: sceneCluster.id
           }
         });
+        console.info("[world-generation] create world completed", {
+          jobId: job.id,
+          projectId: job.projectId,
+          sceneClusterId: sceneCluster.id,
+          operationId: operation.operationId,
+          status: operation.status,
+          worldId: operation.worldId
+        });
       } catch (error) {
+        console.error("[world-generation] create world failed", {
+          jobId: job.id,
+          projectId: job.projectId,
+          sceneClusterId: sceneCluster.id,
+          error: error instanceof Error ? error.message : "World creation failed."
+        });
         if (isFinalJobAttempt(job)) {
           updateSceneClusterRecord(
             sceneCluster.id,
@@ -157,11 +179,33 @@ export function createWorldLabsGenerationHandler(
     let operation: WorldLabsOperation;
 
     try {
+      console.info("[world-generation] poll started", {
+        jobId: job.id,
+        projectId: job.projectId,
+        sceneClusterId: sceneCluster.id,
+        operationId,
+        pollAttempt: payload.pollAttempt ?? 0
+      });
       operation = await provider.getOperation(operationId, {
         projectId: job.projectId,
         sceneClusterId: sceneCluster.id
       });
+      console.info("[world-generation] poll completed", {
+        jobId: job.id,
+        projectId: job.projectId,
+        sceneClusterId: sceneCluster.id,
+        operationId,
+        status: operation.status,
+        worldId: operation.worldId
+      });
     } catch (error) {
+      console.error("[world-generation] poll failed", {
+        jobId: job.id,
+        projectId: job.projectId,
+        sceneClusterId: sceneCluster.id,
+        operationId,
+        error: error instanceof Error ? error.message : "World poll failed."
+      });
       if (isFinalJobAttempt(job)) {
         updateSceneClusterRecord(
           sceneCluster.id,
@@ -241,11 +285,30 @@ export function createWorldLabsGenerationHandler(
     let fetchedAsset: WorldAsset;
 
     try {
+      console.info("[world-generation] asset fetch started", {
+        jobId: job.id,
+        projectId: job.projectId,
+        sceneClusterId: sceneCluster.id,
+        worldId
+      });
       fetchedAsset = await provider.getWorldAssets(worldId, {
         projectId: job.projectId,
         sceneClusterId: sceneCluster.id
       });
+      console.info("[world-generation] asset fetch completed", {
+        jobId: job.id,
+        projectId: job.projectId,
+        sceneClusterId: sceneCluster.id,
+        worldId
+      });
     } catch (error) {
+      console.error("[world-generation] asset fetch failed", {
+        jobId: job.id,
+        projectId: job.projectId,
+        sceneClusterId: sceneCluster.id,
+        worldId,
+        error: error instanceof Error ? error.message : "World asset fetch failed."
+      });
       if (isFinalJobAttempt(job)) {
         updateSceneClusterRecord(
           sceneCluster.id,

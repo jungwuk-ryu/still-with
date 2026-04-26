@@ -82,6 +82,13 @@ export class InProcessGenerationWorker {
     const handler = this.options.handlers[job.type];
 
     if (!handler) {
+      console.warn("[generation-job] missing handler", {
+        jobId: job.id,
+        projectId: job.projectId,
+        type: job.type,
+        attempts: job.attempts,
+        maxAttempts: job.maxAttempts
+      });
       const failedJob = failGenerationJob(
         {
           jobId: job.id,
@@ -98,10 +105,35 @@ export class InProcessGenerationWorker {
       return;
     }
 
+    const startedAt = Date.now();
+    console.info("[generation-job] started", {
+      jobId: job.id,
+      projectId: job.projectId,
+      type: job.type,
+      attempts: job.attempts,
+      maxAttempts: job.maxAttempts,
+      priority: job.priority
+    });
+
     try {
       const result = await handler(job);
       completeGenerationJob(job.id, result, this.options.db);
+      console.info("[generation-job] completed", {
+        jobId: job.id,
+        projectId: job.projectId,
+        type: job.type,
+        durationMs: Date.now() - startedAt
+      });
     } catch (error) {
+      console.error("[generation-job] failed", {
+        jobId: job.id,
+        projectId: job.projectId,
+        type: job.type,
+        attempts: job.attempts,
+        maxAttempts: job.maxAttempts,
+        durationMs: Date.now() - startedAt,
+        error: error instanceof Error ? error.message : "Job handler failed."
+      });
       const failedJob = failGenerationJob(
         {
           jobId: job.id,

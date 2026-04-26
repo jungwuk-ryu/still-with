@@ -37,6 +37,18 @@ export class OpenAISceneSeedGenerator implements SceneSeedGenerator {
     input: SceneSeedGeneratorInput
   ): Promise<GeneratedSeedImage> {
     const apiKey = this.options.apiKey ?? requireOpenAIApiKey();
+    const startedAt = Date.now();
+    const mode = input.sourceImageUrls.length > 0 ? "edit" : "prompt";
+
+    console.info("[image-generation] scene seed started", {
+      projectId: input.projectId,
+      sceneClusterId: input.sceneClusterId,
+      view: input.view,
+      mode,
+      sourceImageCount: input.sourceImageUrls.length,
+      timeoutMs: this.options.requestTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS
+    });
+
     let response =
       input.sourceImageUrls.length > 0
         ? await this.generateImageEdit(apiKey, input)
@@ -98,13 +110,22 @@ export class OpenAISceneSeedGenerator implements SceneSeedGenerator {
       body,
       contentType: contentTypeForExtension(extension)
     });
-
-    return {
+    const result = {
       view: input.view,
       azimuth: input.view === "panorama" ? null : azimuthForView(input.view),
       url: stored.url,
       prompt: input.prompt
     };
+
+    console.info("[image-generation] scene seed completed", {
+      projectId: input.projectId,
+      sceneClusterId: input.sceneClusterId,
+      view: input.view,
+      mode,
+      durationMs: Date.now() - startedAt
+    });
+
+    return result;
   }
 
   private async generateImageFromPrompt(
@@ -327,7 +348,12 @@ async function fetchWithTimeout(
   options: { label: string; timeoutMs: number }
 ): Promise<Response> {
   const controller = new AbortController();
+  const startedAt = Date.now();
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  console.info("[provider-request] started", {
+    label: options.label,
+    timeoutMs: options.timeoutMs
+  });
   const timeout = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => {
       controller.abort();
@@ -353,7 +379,21 @@ async function fetchWithTimeout(
   })();
 
   try {
-    return await Promise.race([request, timeout]);
+    const response = await Promise.race([request, timeout]);
+    console.info("[provider-request] completed", {
+      label: options.label,
+      status: response.status,
+      ok: response.ok,
+      durationMs: Date.now() - startedAt
+    });
+    return response;
+  } catch (error) {
+    console.error("[provider-request] failed", {
+      label: options.label,
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : "Provider request failed."
+    });
+    throw error;
   } finally {
     if (timeoutId) {
       clearTimeout(timeoutId);

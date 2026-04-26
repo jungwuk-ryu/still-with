@@ -373,6 +373,13 @@ async function attemptRemoteMotionProvider(
     let clip = attempt.clip;
     const stored = await withTimeout(
       async (signal) => {
+        console.info("[video-generation] motion provider started", {
+          projectId: input.projectId,
+          motionKey: input.motionKey,
+          providerName: provider.providerName,
+          clipId: attempt.clip.id,
+          timeoutMs: input.remoteAttemptTimeoutMs
+        });
         const keyframeImageUrls = await resolveProviderImageUrls(
           input.keyframeImageUrls,
           input.storage
@@ -389,6 +396,14 @@ async function attemptRemoteMotionProvider(
             projectId: input.projectId,
             signal
           }
+        });
+        console.info("[video-generation] motion provider operation created", {
+          projectId: input.projectId,
+          motionKey: input.motionKey,
+          providerName: provider.providerName,
+          clipId: attempt.clip.id,
+          operationId: operation.operationId,
+          status: operation.status
         });
         throwIfAborted(signal);
         clip = updateMotionClipRecord(
@@ -424,6 +439,13 @@ async function attemptRemoteMotionProvider(
         }
 
         throwIfAborted(signal);
+        console.info("[video-generation] motion download started", {
+          projectId: input.projectId,
+          motionKey: input.motionKey,
+          providerName: provider.providerName,
+          clipId: clip.id,
+          operationId: finalOperation.operationId
+        });
         const videoBody = await provider.downloadMotionClipContent(
           finalOperation.operationId,
           {
@@ -432,13 +454,21 @@ async function attemptRemoteMotionProvider(
           }
         );
         throwIfAborted(signal);
+        const storedVideo = await input.storage.putObject({
+          key: `projects/${input.projectId}/pet/videos/${input.motionKey}-${provider.providerName}-${toStorageSafeToken(finalOperation.operationId)}.mp4`,
+          body: videoBody,
+          contentType: "video/mp4"
+        });
+        console.info("[video-generation] motion video stored", {
+          projectId: input.projectId,
+          motionKey: input.motionKey,
+          providerName: provider.providerName,
+          clipId: clip.id,
+          operationId: finalOperation.operationId
+        });
 
         return {
-          stored: await input.storage.putObject({
-            key: `projects/${input.projectId}/pet/videos/${input.motionKey}-${provider.providerName}-${toStorageSafeToken(finalOperation.operationId)}.mp4`,
-            body: videoBody,
-            contentType: "video/mp4"
-          }),
+          stored: storedVideo,
           reason: ""
         };
       },
@@ -500,6 +530,13 @@ async function attemptRemoteMotionProvider(
         ? error.message
         : `${provider.providerName} provider failed`
     );
+    console.error("[video-generation] motion provider failed", {
+      projectId: input.projectId,
+      motionKey: input.motionKey,
+      providerName: provider.providerName,
+      clipId: attempt.clip.id,
+      error: reason
+    });
     const clip = updateMotionClipRecord(
       attempt.clip.id,
       {
@@ -534,6 +571,14 @@ async function waitForProviderCompletion(
       signal
     });
     status = operation.status;
+    console.info("[video-generation] motion provider poll", {
+      projectId: input.projectId,
+      motionKey: input.motionKey,
+      providerName: provider.providerName,
+      operationId,
+      pollAttempt: attempt + 1,
+      status
+    });
   }
 
   return { operationId, status };
