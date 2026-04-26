@@ -5,7 +5,8 @@ import {
   useEffect,
   useRef,
   useState,
-  type CSSProperties
+  type CSSProperties,
+  type KeyboardEvent
 } from "react";
 import type { PetRuntimeState } from "@/types";
 import type {
@@ -67,6 +68,12 @@ export function MemorySpaceClient({ manifest }: MemorySpaceClientProps) {
   const [dreamFragmentsPending, setDreamFragmentsPending] = useState(false);
   const [selectedDreamFragment, setSelectedDreamFragment] =
     useState<DreamFragmentSummary | null>(null);
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [shareUrl, setShareUrl] = useState("");
+  const [shareCopyState, setShareCopyState] = useState<
+    "idle" | "copied" | "failed"
+  >("idle");
+  const shareButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const handleRoomReady = useCallback(() => {
     setCanPrepareBackgroundSpaces(true);
@@ -133,18 +140,29 @@ export function MemorySpaceClient({ manifest }: MemorySpaceClientProps) {
     const sceneClusterId = currentManifest.world.sceneClusterId;
 
     if (!canPrepareBackgroundSpaces || !sceneClusterId) {
-      setDreamFragments([]);
-      setDreamFragmentsPending(false);
-      return;
+      const resetId = window.setTimeout(() => {
+        setDreamFragments([]);
+        setDreamFragmentsPending(false);
+      }, 0);
+
+      return () => window.clearTimeout(resetId);
     }
 
+    const activeSceneClusterId = sceneClusterId;
     let cancelled = false;
     let timeoutId: number | null = null;
+    const resetId = window.setTimeout(() => {
+      setDreamFragments([]);
+      setDreamFragmentsPending(true);
+    }, 0);
 
     async function pollDreamFragments() {
       try {
         const response = await fetch(
-          buildDreamFragmentsUrl(currentManifest.projectId, sceneClusterId),
+          buildDreamFragmentsUrl(
+            currentManifest.projectId,
+            activeSceneClusterId
+          ),
           {
             cache: "no-store"
           }
@@ -173,12 +191,11 @@ export function MemorySpaceClient({ manifest }: MemorySpaceClientProps) {
       }
     }
 
-    setDreamFragments([]);
-    setDreamFragmentsPending(true);
     void pollDreamFragments();
 
     return () => {
       cancelled = true;
+      window.clearTimeout(resetId);
 
       if (timeoutId !== null) {
         window.clearTimeout(timeoutId);
@@ -266,6 +283,28 @@ export function MemorySpaceClient({ manifest }: MemorySpaceClientProps) {
     }
   }
 
+  function openShareDialog() {
+    setShareUrl(window.location.href);
+    setShareCopyState("idle");
+    setIsShareDialogOpen(true);
+  }
+
+  function closeShareDialog() {
+    setIsShareDialogOpen(false);
+    shareButtonRef.current?.focus();
+  }
+
+  async function copyShareUrl() {
+    const url = shareUrl || window.location.href;
+
+    try {
+      await copyTextToClipboard(url);
+      setShareCopyState("copied");
+    } catch {
+      setShareCopyState("failed");
+    }
+  }
+
   return (
     <main className="space-shell">
       {currentManifest.displayName ? (
@@ -273,6 +312,16 @@ export function MemorySpaceClient({ manifest }: MemorySpaceClientProps) {
           <span>{getPossessiveName(currentManifest.displayName)} dream</span>
         </div>
       ) : null}
+      <button
+        ref={shareButtonRef}
+        type="button"
+        className="space-share-button"
+        aria-label="Share this dream"
+        title="Share this dream"
+        onClick={openShareDialog}
+      >
+        <ShareIcon />
+      </button>
       <MemoryScene
         key={`scene-${currentManifest.world.sceneClusterId ?? currentManifest.generatedAt}`}
         manifest={currentManifest}
@@ -304,6 +353,16 @@ export function MemorySpaceClient({ manifest }: MemorySpaceClientProps) {
           onClose={() => setSelectedDreamFragment(null)}
         />
       ) : null}
+      {isShareDialogOpen ? (
+        <ShareDialog
+          shareUrl={shareUrl}
+          copyState={shareCopyState}
+          onCopy={() => {
+            void copyShareUrl();
+          }}
+          onClose={closeShareDialog}
+        />
+      ) : null}
       <FloatingChatBar
         projectId={currentManifest.projectId}
         chatAccessToken={currentManifest.chatAccessToken}
@@ -311,6 +370,115 @@ export function MemorySpaceClient({ manifest }: MemorySpaceClientProps) {
         onConversationTurn={handleConversationTurn}
       />
     </main>
+  );
+}
+
+function ShareDialog({
+  shareUrl,
+  copyState,
+  onCopy,
+  onClose
+}: {
+  shareUrl: string;
+  copyState: "idle" | "copied" | "failed";
+  onCopy: () => void;
+  onClose: () => void;
+}) {
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const urlInputRef = useRef<HTMLInputElement | null>(null);
+  const copyStatus =
+    copyState === "copied"
+      ? "Address copied."
+      : copyState === "failed"
+        ? "Copy failed. Select the address and copy it manually."
+        : "Copy this address to share the dream.";
+
+  useEffect(() => {
+    urlInputRef.current?.focus();
+    urlInputRef.current?.select();
+  }, []);
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+
+    if (event.key !== "Tab" || !dialogRef.current) {
+      return;
+    }
+
+    const focusableElements = dialogRef.current.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+
+    if (!firstElement || !lastElement) {
+      return;
+    }
+
+    if (event.shiftKey && document.activeElement === firstElement) {
+      event.preventDefault();
+      lastElement.focus();
+      return;
+    }
+
+    if (!event.shiftKey && document.activeElement === lastElement) {
+      event.preventDefault();
+      firstElement.focus();
+    }
+  }
+
+  return (
+    <div className="share-dialog" onKeyDown={handleKeyDown}>
+      <button
+        type="button"
+        className="share-dialog-backdrop"
+        aria-label="Close share dialog"
+        onClick={onClose}
+      />
+      <section
+        ref={dialogRef}
+        className="share-dialog-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="share-dialog-title"
+        aria-describedby="share-dialog-status"
+      >
+        <button
+          type="button"
+          className="share-dialog-close"
+          aria-label="Close share dialog"
+          onClick={onClose}
+        >
+          Close
+        </button>
+        <p className="eyebrow">Share</p>
+        <h2 id="share-dialog-title">Share this dream</h2>
+        <div className="share-url-row">
+          <input
+            ref={urlInputRef}
+            type="text"
+            readOnly
+            value={shareUrl}
+            aria-label="Dream address"
+            onFocus={(event) => event.currentTarget.select()}
+          />
+          <button type="button" className="button button-primary" onClick={onCopy}>
+            Copy
+          </button>
+        </div>
+        <p
+          id="share-dialog-status"
+          className={copyState === "failed" ? "form-warning" : "share-copy-status"}
+          aria-live="polite"
+        >
+          {copyStatus}
+        </p>
+      </section>
+    </div>
   );
 }
 
@@ -439,6 +607,18 @@ function getPossessiveName(displayName: string): string {
   return displayName.endsWith("s") ? `${displayName}'` : `${displayName}'s`;
 }
 
+function ShareIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M8.6 12.8 15.4 16.7" />
+      <path d="M15.4 7.3 8.6 11.2" />
+      <circle cx="6.5" cy="12" r="2.4" />
+      <circle cx="17.5" cy="6.2" r="2.4" />
+      <circle cx="17.5" cy="17.8" r="2.4" />
+    </svg>
+  );
+}
+
 function DreamSpaceSwitcher({
   spaces,
   switchingSceneClusterId,
@@ -539,4 +719,28 @@ function buildDreamFragmentsUrl(
 
   url.searchParams.set("sceneClusterId", sceneClusterId);
   return url.pathname + url.search;
+}
+
+async function copyTextToClipboard(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  textArea.setAttribute("readonly", "");
+  textArea.style.position = "fixed";
+  textArea.style.top = "0";
+  textArea.style.left = "-9999px";
+  document.body.appendChild(textArea);
+  textArea.select();
+
+  try {
+    if (!document.execCommand("copy")) {
+      throw new Error("Copy command failed.");
+    }
+  } finally {
+    document.body.removeChild(textArea);
+  }
 }

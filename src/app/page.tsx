@@ -11,6 +11,9 @@ export default function UploadPage() {
           <Link className="nav-pill" href="/projects">
             Dreams
           </Link>
+          <Link className="nav-pill" href="/pitch">
+            Pitch Deck
+          </Link>
           <span className="nav-pill">Private by default</span>
         </div>
       </nav>
@@ -22,6 +25,11 @@ export default function UploadPage() {
           <p className="hero-subtitle">
             Upload a few photos of your pet and the places they loved.
           </p>
+          <div className="home-pitch-launch">
+            <Link className="nav-pill" href="/pitch">
+              Pitch Deck
+            </Link>
+          </div>
         </div>
 
         <UploadFlow />
