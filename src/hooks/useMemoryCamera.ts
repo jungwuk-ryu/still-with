@@ -33,8 +33,8 @@ const LIMITS = {
   depth: 0.7
 };
 
-const SAFE_VIEW_DIRECTION: [number, number] = normalizeHorizontal(0.18, 1);
-const SAFE_PET_CAMERA_DISTANCE = 2.35;
+const SAFE_ROOM_CAMERA_Z = 1.72;
+const SAFE_ROOM_CAMERA_X_WEIGHT = 0.18;
 const MIN_CAMERA_RADIUS = 1.9;
 const MAX_CAMERA_RADIUS = 3.1;
 
@@ -208,50 +208,20 @@ function getPetAwarePose(
     focus.position[1] + focus.height * 0.38,
     focus.position[2]
   ];
-  const direction = getSafePetCameraDirection(initialPose);
   const heightOffset = clamp(focus.height * 0.32 + 0.48, 0.58, 0.82);
-  const cameraDistance = clamp(
-    distance(initialPose.position, initialPose.target),
-    SAFE_PET_CAMERA_DISTANCE,
-    MAX_CAMERA_RADIUS
-  );
+  const target: [number, number, number] = [
+    clamp(petFocus[0], -0.46, 0.46),
+    petFocus[1],
+    clamp(petFocus[2], -0.72, 0.42)
+  ];
 
   return {
     position: [
-      petFocus[0] + direction[0] * cameraDistance,
-      petFocus[1] + heightOffset,
-      petFocus[2] + direction[1] * cameraDistance
+      clamp(target[0] * SAFE_ROOM_CAMERA_X_WEIGHT, -0.22, 0.22),
+      target[1] + heightOffset,
+      SAFE_ROOM_CAMERA_Z
     ],
-    target: petFocus,
+    target,
     fov: initialPose.fov
   };
-}
-
-function getSafePetCameraDirection(initialPose: CameraPose): [number, number] {
-  const initialDirection = normalizeHorizontal(
-    initialPose.position[0] - initialPose.target[0],
-    initialPose.position[2] - initialPose.target[2]
-  );
-  const alignment =
-    initialDirection[0] * SAFE_VIEW_DIRECTION[0] +
-    initialDirection[1] * SAFE_VIEW_DIRECTION[1];
-
-  if (alignment < 0.35) {
-    return SAFE_VIEW_DIRECTION;
-  }
-
-  return normalizeHorizontal(
-    lerp(initialDirection[0], SAFE_VIEW_DIRECTION[0], 0.55),
-    lerp(initialDirection[1], SAFE_VIEW_DIRECTION[1], 0.55)
-  );
-}
-
-function normalizeHorizontal(x: number, z: number): [number, number] {
-  const length = Math.hypot(x, z);
-
-  if (length < 0.001) {
-    return [0, 1];
-  }
-
-  return [x / length, z / length];
 }
