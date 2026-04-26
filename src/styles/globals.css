@@ -378,11 +378,18 @@ textarea {
   position: relative;
   overflow: hidden;
   z-index: 1;
-  border-color: rgba(255, 255, 255, 0.82);
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: var(--shadow-heaven-bloom);
+  border-color: rgba(243, 26, 124, 0.28);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: var(--shadow-dream-card-bloom);
   backdrop-filter: blur(22px) saturate(1.18);
   filter: var(--filter-heaven-bloom);
+}
+
+.progress-panel::before {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(243, 26, 124, 0.22), transparent 32%),
+    radial-gradient(circle at 86% 14%, rgba(104, 47, 255, 0.14), transparent 34%),
+    radial-gradient(circle at 50% 100%, rgba(255, 255, 255, 0.72), transparent 42%);
 }
 
 .progress-panel::before,
@@ -441,18 +448,18 @@ textarea {
 
 .stage-list .stage-active {
   color: var(--color-text);
-  border-color: rgba(255, 255, 255, 0.9);
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 0 22px rgba(255, 255, 255, 0.8), 0 0 54px rgba(255, 255, 255, 0.48);
+  border-color: rgba(243, 26, 124, 0.34);
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 0 22px rgba(243, 26, 124, 0.2), 0 0 54px rgba(255, 255, 255, 0.48);
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.76);
   animation: dreamCurrentStepAwaken 2.8s ease-in-out infinite;
 }
 
 .stage-list .stage-complete {
   color: var(--color-text);
-  border-color: rgba(255, 255, 255, 0.92);
+  border-color: rgba(243, 26, 124, 0.18);
   background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.72), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  box-shadow: 0 0 18px rgba(243, 26, 124, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.72);
   text-shadow: none;
   filter: none;
 }
@@ -461,14 +468,14 @@ textarea {
   0%,
   100% {
     color: rgba(19, 21, 23, 0.5);
-    text-shadow: 0 0 10px rgba(19, 21, 23, 0.28), 0 0 28px rgba(255, 255, 255, 0.7);
+    text-shadow: 0 0 10px rgba(19, 21, 23, 0.28), 0 0 28px rgba(243, 26, 124, 0.22);
     filter: blur(1.05px);
   }
 
   48%,
   62% {
     color: var(--color-text);
-    text-shadow: 0 0 2px rgba(19, 21, 23, 0.12), 0 0 34px rgba(255, 255, 255, 0.84);
+    text-shadow: 0 0 2px rgba(19, 21, 23, 0.12), 0 0 34px rgba(243, 26, 124, 0.24);
     filter: blur(0.08px);
   }
 }
@@ -481,7 +488,7 @@ textarea {
   margin-bottom: 18px;
   padding: 16px;
   background: rgba(255, 255, 255, 0.74);
-  box-shadow: 0 0 26px rgba(255, 255, 255, 0.72), 0 0 48px rgba(40, 126, 255, 0.08);
+  box-shadow: 0 0 24px rgba(243, 26, 124, 0.16), 0 0 54px rgba(255, 255, 255, 0.52);
 }
 
 .current-stage span {

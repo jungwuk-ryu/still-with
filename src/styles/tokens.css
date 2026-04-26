@@ -61,6 +61,10 @@
     0 0 48px rgba(255, 255, 255, 0.66),
     0 0 86px rgba(255, 255, 255, 0.42),
     0 22px 74px rgba(40, 126, 255, 0.1);
+  --shadow-dream-card-bloom: 0 0 0 1px rgba(243, 26, 124, 0.18),
+    0 0 28px rgba(243, 26, 124, 0.22),
+    0 0 72px rgba(104, 47, 255, 0.12),
+    0 28px 88px rgba(19, 21, 23, 0.16);
   --filter-bloom: drop-shadow(0 0 14px rgba(243, 26, 124, 0.22))
     drop-shadow(0 0 32px rgba(40, 126, 255, 0.14));
   --filter-heaven-bloom: drop-shadow(0 0 18px rgba(255, 255, 255, 0.84))
