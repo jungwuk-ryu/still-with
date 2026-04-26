@@ -5,11 +5,16 @@ export function initializeDatabase(db: Database.Database): void {
   db.pragma("foreign_keys = ON");
   db.exec(SCHEMA_SQL);
   ensureProjectColumns(db);
+  ensureSceneClusterColumns(db);
   ensureMotionClipColumns(db);
 }
 
 function ensureProjectColumns(db: Database.Database): void {
   ensureColumns(db, "projects", [["selected_pet_id", "TEXT"]]);
+}
+
+function ensureSceneClusterColumns(db: Database.Database): void {
+  ensureColumns(db, "scene_clusters", [["seed_prompt_version", "TEXT"]]);
 }
 
 function ensureMotionClipColumns(db: Database.Database): void {

@@ -8,7 +8,11 @@ import {
   createSceneClusterRecord,
   getSceneClusterRecord
 } from "@/server/assets/world-assets";
-import type { SceneSeedGenerator } from "@/ai/scene";
+import {
+  RECONSTRUCTED_SPACE_IMAGE_PROMPT,
+  SPACE_RECONSTRUCTION_PROMPT_VERSION,
+  type SceneSeedGenerator
+} from "@/ai/scene";
 import { createSpaceSeedHandler } from "./handler";
 
 let db: DatabaseClient | null = null;
@@ -73,7 +77,71 @@ describe("space seed handler", () => {
       sceneClusterId: sceneCluster.id,
       inputMode: "multi-image"
     });
+    expect(JSON.parse(nextJob.payload_json).textPrompt).toContain(
+      "Gaussian splatting"
+    );
     expect(nextJob.max_attempts).toBe(1);
+  });
+
+  it("persists seed image progress after each generated view", async () => {
+    db = await createTestDatabase();
+    const testDb = db;
+    const project = createProjectRecord({}, db);
+    insertUploadedImage(db, project.id, "image-1", 0);
+    const sceneCluster = createSceneClusterRecord(
+      {
+        projectId: project.id,
+        label: "Living room",
+        sourceImageIds: ["image-1"],
+        representativeImageIds: ["image-1"],
+        spatialPrompt: "A quiet living room."
+      },
+      db
+    );
+    const persistedCountsBeforeNextGeneration: number[] = [];
+    const handler = createSpaceSeedHandler({
+      db,
+      enqueueNextJob: false,
+      seedGenerator: {
+        async generateSeed(input) {
+          persistedCountsBeforeNextGeneration.push(
+            getSceneClusterRecord(sceneCluster.id, testDb)?.seedImageUrls.length ?? -1
+          );
+
+          return {
+            view: input.view,
+            azimuth: input.view === "panorama" ? null : 0,
+            url: `/api/storage/projects/project-1/space-seeds/${input.view}.png`,
+            prompt: input.prompt
+          };
+        }
+      }
+    });
+    const job = createGenerationJob(
+      {
+        projectId: project.id,
+        type: "space-seed",
+        payload: {
+          sceneClusterId: sceneCluster.id,
+          seedStrategy: "generated-multiview"
+        }
+      },
+      db
+    );
+
+    await handler(job);
+
+    expect(persistedCountsBeforeNextGeneration).toEqual([0, 1, 2, 3]);
+    expect(getSceneClusterRecord(sceneCluster.id, db)).toMatchObject({
+      seedImageUrls: [
+        "/api/storage/projects/project-1/space-seeds/front.png",
+        "/api/storage/projects/project-1/space-seeds/left.png",
+        "/api/storage/projects/project-1/space-seeds/right.png",
+        "/api/storage/projects/project-1/space-seeds/back.png"
+      ],
+      seedPromptVersion: SPACE_RECONSTRUCTION_PROMPT_VERSION,
+      status: "waiting_for_world"
+    });
   });
 
   it("does not forward uploaded photos directly without an explicit safe gate", async () => {
@@ -197,6 +265,7 @@ describe("space seed handler", () => {
         representativeImageIds: ["image-1"],
         spatialPrompt: "A quiet favorite corner.",
         seedImageUrls: ["/api/storage/existing.png"],
+        seedPromptVersion: SPACE_RECONSTRUCTION_PROMPT_VERSION,
         worldLabsOperationId: "operation-1",
         status: "waiting_for_world"
       },
@@ -224,6 +293,65 @@ describe("space seed handler", () => {
     await expect(handler(job)).resolves.toMatchObject({
       reusedExistingSeeds: true,
       seedImageUrls: ["/api/storage/existing.png"]
+    });
+  });
+
+  it("regenerates waiting seed images from older prompt versions", async () => {
+    db = await createTestDatabase();
+    const project = createProjectRecord({}, db);
+    insertUploadedImage(db, project.id, "image-1", 0);
+    const sceneCluster = createSceneClusterRecord(
+      {
+        projectId: project.id,
+        label: "Favorite corner",
+        sourceImageIds: ["image-1"],
+        representativeImageIds: ["image-1"],
+        spatialPrompt: [
+          "Favorite corner. A quiet favorite corner.",
+          RECONSTRUCTED_SPACE_IMAGE_PROMPT,
+          "The space must be completely empty of pets, people, and all other animals.",
+          "Preserve believable room scale, navigable floor space, soft bright memorial lighting, and real-world materials."
+        ].join(" "),
+        seedImageUrls: ["/api/storage/old-seed.png"],
+        seedPromptVersion: null,
+        worldLabsOperationId: "operation-1",
+        status: "waiting_for_world"
+      },
+      db
+    );
+    const seenViews: string[] = [];
+    const handler = createSpaceSeedHandler({
+      db,
+      enqueueNextJob: false,
+      seedGenerator: createSeedGenerator(seenViews)
+    });
+    const job = createGenerationJob(
+      {
+        projectId: project.id,
+        type: "space-seed",
+        payload: {
+          sceneClusterId: sceneCluster.id,
+          seedStrategy: "generated-multiview"
+        }
+      },
+      db
+    );
+
+    const result = await handler(job);
+
+    expect(JSON.stringify(result)).not.toContain("reusedExistingSeeds");
+    expect(seenViews).toEqual(["front", "left", "right", "back"]);
+    expect(getSceneClusterRecord(sceneCluster.id, db)).toMatchObject({
+      seedImageUrls: [
+        "/api/storage/projects/project-1/space-seeds/front.png",
+        "/api/storage/projects/project-1/space-seeds/left.png",
+        "/api/storage/projects/project-1/space-seeds/right.png",
+        "/api/storage/projects/project-1/space-seeds/back.png"
+      ],
+      seedPromptVersion: SPACE_RECONSTRUCTION_PROMPT_VERSION,
+      spatialPrompt: "A quiet favorite corner.",
+      worldLabsOperationId: null,
+      status: "waiting_for_world"
     });
   });
 

@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS scene_clusters (
   representative_image_ids_json TEXT NOT NULL DEFAULT '[]',
   spatial_prompt TEXT,
   seed_image_urls_json TEXT NOT NULL DEFAULT '[]',
+  seed_prompt_version TEXT,
   world_labs_operation_id TEXT,
   world_id TEXT,
   status TEXT NOT NULL,

@@ -62,6 +62,7 @@ export function createSceneClassificationHandler(
               representativeImageIds: primary.representativeImageIds,
               spatialPrompt: primary.spatialPrompt,
               seedImageUrls: [],
+              seedPromptVersion: null,
               worldLabsOperationId: null,
               worldId: null,
               status: "selected"

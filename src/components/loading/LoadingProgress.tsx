@@ -26,6 +26,13 @@ interface GentleRetryState {
   retryAfterSeconds: number | null;
 }
 
+interface PublicSpacePreviewImage {
+  id: string;
+  url: string;
+  label: string;
+  order: number;
+}
+
 interface PublicProjectStatus {
   projectId: string;
   status: ProjectStatus;
@@ -35,6 +42,7 @@ interface PublicProjectStatus {
   canEnter: boolean;
   needsClarification: boolean;
   uploadedImages: PublicProjectImage[];
+  spacePreviewImages: PublicSpacePreviewImage[];
   selectedPetId: string | null;
   updatedAt: string;
 }
@@ -130,6 +138,7 @@ export function LoadingProgress({
       retry: null,
       canEnter: false,
       nextRoute: null,
+      spacePreviewImages: [],
       status: "uploading" as ProjectStatus
     };
   }, [stageTitles, status]);
@@ -198,6 +207,25 @@ export function LoadingProgress({
         <span>{visibleStatus.stage.title}</span>
         <p>{visibleStatus.stage.description}</p>
       </div>
+
+      {visibleStatus.spacePreviewImages.length > 0 ? (
+        <ul
+          className="space-preview-strip"
+          aria-hidden="true"
+        >
+          {visibleStatus.spacePreviewImages.map((preview) => (
+            <li key={preview.id}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={preview.url}
+                alt=""
+                loading="eager"
+                draggable={false}
+              />
+            </li>
+          ))}
+        </ul>
+      ) : null}
 
       <ol className="stage-list" aria-label="Preparation stages">
         {stageTitles.map((stage, index) => (

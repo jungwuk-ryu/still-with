@@ -48,7 +48,9 @@ export interface PlannedSeedImage {
 
 export interface SceneSeedPlan {
   strategy: SceneSeedStrategy;
+  sourceSpatialPrompt: string;
   worldPrompt: string;
+  seedPromptVersion: string;
   seedImages: PlannedSeedImage[];
 }
 

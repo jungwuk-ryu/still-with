@@ -1,5 +1,6 @@
 import {
   OpenAISceneSeedGenerator,
+  SPACE_RECONSTRUCTION_PROMPT_VERSION,
   planSceneSeeds,
   type GeneratedSeedImage,
   type SceneSeedGenerator,
@@ -48,6 +49,7 @@ export function createSpaceSeedHandler(
 
     if (
       sceneCluster.seedImageUrls.length > 0 &&
+      sceneCluster.seedPromptVersion === SPACE_RECONSTRUCTION_PROMPT_VERSION &&
       (sceneCluster.status === "ready" || sceneCluster.status === "waiting_for_world")
     ) {
       return {
@@ -61,6 +63,10 @@ export function createSpaceSeedHandler(
     updateSceneClusterRecord(
       sceneCluster.id,
       {
+        seedImageUrls: [],
+        seedPromptVersion: SPACE_RECONSTRUCTION_PROMPT_VERSION,
+        worldLabsOperationId: null,
+        worldId: null,
         status: "generating_seed"
       },
       options.db
@@ -98,6 +104,13 @@ export function createSpaceSeedHandler(
             url: plannedSeed.url,
             prompt: plannedSeed.prompt
           });
+          persistSeedProgress(
+            sceneCluster.id,
+            generatedSeeds,
+            plan.sourceSpatialPrompt,
+            plan.seedPromptVersion,
+            options.db
+          );
           continue;
         }
 
@@ -110,6 +123,13 @@ export function createSpaceSeedHandler(
             sourceImageUrls: representativeUrls
           })
         );
+        persistSeedProgress(
+          sceneCluster.id,
+          generatedSeeds,
+          plan.sourceSpatialPrompt,
+          plan.seedPromptVersion,
+          options.db
+        );
       }
 
       const seedImageUrls = generatedSeeds.map((seed) => seed.url);
@@ -118,7 +138,8 @@ export function createSpaceSeedHandler(
           sceneCluster.id,
           {
             seedImageUrls,
-            spatialPrompt: plan.worldPrompt,
+            seedPromptVersion: plan.seedPromptVersion,
+            spatialPrompt: plan.sourceSpatialPrompt,
             worldLabsOperationId: null,
             worldId: null,
             status: "waiting_for_world"
@@ -174,6 +195,27 @@ export function createSpaceSeedHandler(
       throw error;
     }
   };
+}
+
+function persistSeedProgress(
+  sceneClusterId: string,
+  generatedSeeds: GeneratedSeedImage[],
+  sourceSpatialPrompt: string,
+  seedPromptVersion: string,
+  db: DatabaseClient
+): void {
+  updateSceneClusterRecord(
+    sceneClusterId,
+    {
+      seedImageUrls: generatedSeeds.map((seed) => seed.url),
+      seedPromptVersion,
+      spatialPrompt: sourceSpatialPrompt,
+      worldLabsOperationId: null,
+      worldId: null,
+      status: "generating_seed"
+    },
+    db
+  );
 }
 
 function worldLabsInputModeForStrategy(

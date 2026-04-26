@@ -8,6 +8,8 @@ import {
   createGenerationJob,
   failGenerationJob
 } from "@/server/jobs";
+import { createSceneClusterRecord } from "@/server/assets/world-assets";
+import { SPACE_RECONSTRUCTION_PROMPT_VERSION } from "@/ai/scene";
 import { createLocalStorageDriver } from "@/server/storage";
 import {
   ClarificationValidationError,
@@ -199,6 +201,76 @@ describe("intake project flow", () => {
       "This is taking a little longer than expected."
     );
     expect(publicStatus?.retry?.message).not.toContain(job.id);
+  });
+
+  it("exposes generated space reconstruction previews in public status", async () => {
+    const context = await createTestContext();
+    const result = await createProjectFromUploads(
+      [createImageUpload("one.jpg"), createImageUpload("two.jpg")],
+      context
+    );
+
+    const sceneCluster = createSceneClusterRecord(
+      {
+        projectId: result.project.id,
+        label: "Living room",
+        sourceImageIds: [],
+        representativeImageIds: [],
+        spatialPrompt: "A high-fidelity reconstructed living room.",
+        seedImageUrls: [
+          "/api/storage/projects/project-1/space-seeds/front.png",
+          "/api/storage/projects/project-1/space-seeds/left.png"
+        ],
+        seedPromptVersion: SPACE_RECONSTRUCTION_PROMPT_VERSION,
+        status: "generating_seed"
+      },
+      context.db
+    );
+
+    const publicStatus = getPublicProjectStatus(result.project.id, {
+      db: context.db
+    });
+
+    expect(publicStatus?.spacePreviewImages).toEqual([
+      {
+        id: `${sceneCluster.id}-seed-0`,
+        url: "/api/storage/projects/project-1/space-seeds/front.png",
+        label: "Space reconstruction preview 1",
+        order: 0
+      },
+      {
+        id: `${sceneCluster.id}-seed-1`,
+        url: "/api/storage/projects/project-1/space-seeds/left.png",
+        label: "Space reconstruction preview 2",
+        order: 1
+      }
+    ]);
+  });
+
+  it("does not expose stale space previews from older prompt versions", async () => {
+    const context = await createTestContext();
+    const result = await createProjectFromUploads(
+      [createImageUpload("one.jpg"), createImageUpload("two.jpg")],
+      context
+    );
+
+    createSceneClusterRecord(
+      {
+        projectId: result.project.id,
+        label: "Living room",
+        sourceImageIds: [],
+        representativeImageIds: [],
+        spatialPrompt: "A previous living room prompt.",
+        seedImageUrls: ["/api/storage/projects/project-1/space-seeds/old.png"],
+        seedPromptVersion: null,
+        status: "waiting_for_world"
+      },
+      context.db
+    );
+
+    expect(
+      getPublicProjectStatus(result.project.id, { db: context.db })?.spacePreviewImages
+    ).toEqual([]);
   });
 
   it("cleans up partial upload state when storage fails", async () => {

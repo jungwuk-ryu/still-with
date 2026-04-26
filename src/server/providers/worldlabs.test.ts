@@ -474,6 +474,7 @@ function createSceneCluster(): SceneCluster {
     spatialPrompt:
       "A quiet living room empty of pets, people, and all other animals.",
     seedImageUrls: [],
+    seedPromptVersion: null,
     worldLabsOperationId: null,
     worldId: null,
     status: "selected"

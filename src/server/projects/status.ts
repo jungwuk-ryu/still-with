@@ -1,5 +1,7 @@
 import type { Project, ProjectStatus, UploadedImage } from "@/types";
 import { getDatabase, type DatabaseClient } from "@/server/db";
+import { getSelectedSceneClusterForProject } from "@/server/assets/world-assets";
+import { SPACE_RECONSTRUCTION_PROMPT_VERSION } from "@/ai/scene";
 import { getProjectBundle } from "./repository";
 import {
   getDefaultStageIndexForStatus,
@@ -29,6 +31,13 @@ export interface GentleRetryState {
   retryAfterSeconds: number | null;
 }
 
+export interface PublicSpacePreviewImage {
+  id: string;
+  url: string;
+  label: string;
+  order: number;
+}
+
 export interface PublicProjectStatus {
   projectId: string;
   status: ProjectStatus;
@@ -38,6 +47,7 @@ export interface PublicProjectStatus {
   canEnter: boolean;
   needsClarification: boolean;
   uploadedImages: PublicProjectImage[];
+  spacePreviewImages: PublicSpacePreviewImage[];
   selectedPetId: string | null;
   updatedAt: string;
 }
@@ -90,6 +100,7 @@ export function getPublicProjectStatus(
     canEnter: bundle.project.status === "ready",
     needsClarification: bundle.project.status === "clarification_required",
     uploadedImages: bundle.uploadedImages.map(toPublicImage),
+    spacePreviewImages: getSpacePreviewImages(bundle.project.id, db),
     selectedPetId: bundle.project.selectedPetId,
     updatedAt: bundle.project.updatedAt
   };
@@ -127,6 +138,27 @@ function toPublicImage(image: UploadedImage): PublicProjectImage {
     mimeType: image.mimeType,
     uploadOrder: image.uploadOrder
   };
+}
+
+function getSpacePreviewImages(
+  projectId: string,
+  db: DatabaseClient
+): PublicSpacePreviewImage[] {
+  const sceneCluster = getSelectedSceneClusterForProject(projectId, db);
+
+  if (
+    !sceneCluster ||
+    sceneCluster.seedPromptVersion !== SPACE_RECONSTRUCTION_PROMPT_VERSION
+  ) {
+    return [];
+  }
+
+  return sceneCluster.seedImageUrls.map((url, index) => ({
+    id: `${sceneCluster.id}-seed-${index}`,
+    url,
+    label: `Space reconstruction preview ${index + 1}`,
+    order: index
+  }));
 }
 
 function getRetryAfterSeconds(runAfter: string): number {

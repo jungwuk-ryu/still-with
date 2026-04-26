@@ -31,6 +31,7 @@ interface SceneClusterRow {
   representative_image_ids_json: string;
   spatial_prompt: string | null;
   seed_image_urls_json: string;
+  seed_prompt_version: string | null;
   world_labs_operation_id: string | null;
   world_id: string | null;
   status: SceneClusterStatus;
@@ -59,6 +60,7 @@ export interface CreateSceneClusterRecordInput {
   representativeImageIds: string[];
   spatialPrompt: string | null;
   seedImageUrls?: string[];
+  seedPromptVersion?: string | null;
   worldLabsOperationId?: string | null;
   worldId?: string | null;
   status?: SceneClusterStatus;
@@ -70,6 +72,7 @@ export interface UpdateSceneClusterRecordInput {
   representativeImageIds?: string[];
   spatialPrompt?: string | null;
   seedImageUrls?: string[];
+  seedPromptVersion?: string | null;
   worldLabsOperationId?: string | null;
   worldId?: string | null;
   status?: SceneClusterStatus;
@@ -126,6 +129,7 @@ export function createSceneClusterRecord(
     representativeImageIds: input.representativeImageIds,
     spatialPrompt: input.spatialPrompt,
     seedImageUrls: input.seedImageUrls ?? [],
+    seedPromptVersion: input.seedPromptVersion ?? null,
     worldLabsOperationId: input.worldLabsOperationId ?? null,
     worldId: input.worldId ?? null,
     status: input.status ?? "selected"
@@ -135,11 +139,13 @@ export function createSceneClusterRecord(
     `INSERT INTO scene_clusters (
       id, project_id, label, source_image_ids_json,
       representative_image_ids_json, spatial_prompt, seed_image_urls_json,
-      world_labs_operation_id, world_id, status, created_at, updated_at
+      seed_prompt_version, world_labs_operation_id, world_id, status,
+      created_at, updated_at
     ) VALUES (
       @id, @projectId, @label, @sourceImageIdsJson,
       @representativeImageIdsJson, @spatialPrompt, @seedImageUrlsJson,
-      @worldLabsOperationId, @worldId, @status, @createdAt, @updatedAt
+      @seedPromptVersion, @worldLabsOperationId, @worldId, @status,
+      @createdAt, @updatedAt
     )`
   ).run({
     ...sceneCluster,
@@ -202,6 +208,10 @@ export function updateSceneClusterRecord(
     spatialPrompt:
       input.spatialPrompt === undefined ? current.spatialPrompt : input.spatialPrompt,
     seedImageUrls: input.seedImageUrls ?? current.seedImageUrls,
+    seedPromptVersion:
+      input.seedPromptVersion === undefined
+        ? current.seedPromptVersion
+        : input.seedPromptVersion,
     worldLabsOperationId:
       input.worldLabsOperationId === undefined
         ? current.worldLabsOperationId
@@ -217,6 +227,7 @@ export function updateSceneClusterRecord(
          representative_image_ids_json = ?,
          spatial_prompt = ?,
          seed_image_urls_json = ?,
+         seed_prompt_version = ?,
          world_labs_operation_id = ?,
          world_id = ?,
          status = ?,
@@ -228,6 +239,7 @@ export function updateSceneClusterRecord(
     JSON.stringify(next.representativeImageIds),
     next.spatialPrompt,
     JSON.stringify(next.seedImageUrls),
+    next.seedPromptVersion,
     next.worldLabsOperationId,
     next.worldId,
     next.status,
@@ -360,6 +372,7 @@ function mapSceneClusterRow(row: SceneClusterRow): SceneCluster {
     representativeImageIds: parseJsonArray(row.representative_image_ids_json),
     spatialPrompt: row.spatial_prompt,
     seedImageUrls: parseJsonArray(row.seed_image_urls_json),
+    seedPromptVersion: row.seed_prompt_version,
     worldLabsOperationId: row.world_labs_operation_id,
     worldId: row.world_id,
     status: row.status

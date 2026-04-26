@@ -77,6 +77,7 @@ export interface SceneCluster {
   representativeImageIds: string[];
   spatialPrompt: string | null;
   seedImageUrls: string[];
+  seedPromptVersion: string | null;
   worldLabsOperationId: string | null;
   worldId: string | null;
   status: SceneClusterStatus;
