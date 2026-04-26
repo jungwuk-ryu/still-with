@@ -413,27 +413,21 @@ merge 순서:
 - 실행한 명령
 - 통과/실패한 테스트
 - 남은 blocker
-- reviewer에게 특히 봐달라고 할 위험 영역
+- 직접 검증한 product/UX/safety 및 technical/security 위험 영역
 ```
 
 ---
 
-## 6. Product / UX / Safety Reviewer Prompt
+## 6. Product / UX / Safety Direct Verification Checklist
 
 ```text
-너는 Still With 프로젝트의 Product, UX, Emotional Safety, Accessibility Reviewer다.
-
-작업 위치:
-/Users/jungwuk/Documents/works/still-with-review-ux
-
-브랜치:
-codex/review-product-safety
+통합 담당자는 Still With 프로젝트의 Product, UX, Emotional Safety, Accessibility 관점을 직접 검증한다.
 
 먼저 PRD.md, DESIGN.md, AGENT_WORKTREE_PLAN.md를 읽어라.
 이 작업은 구현이 어느 정도 통합된 codex/integration 기준으로 진행한다.
 
 목표:
-코드를 수정하기 전에 review-only로 제품/UX/감정적 안전성/접근성/영어 copy 관점의 blocker를 찾는다.
+제품/UX/감정적 안전성/접근성/영어 copy 관점의 blocker를 직접 찾고, blocker가 있으면 수정한 뒤 관련 검증을 다시 실행한다.
 
 검토 관점:
 - 모든 사용자-facing UI가 영어인가?
@@ -450,27 +444,21 @@ codex/review-product-safety
 - blocker/high/medium/low로 분류한다.
 - 각 finding은 파일 경로와 가능하면 line을 포함한다.
 - blocker가 없다면 "Zero product/UX/safety blockers"라고 명확히 말한다.
-- 수정은 하지 말고 리뷰 결과만 제출한다.
+- 실행한 테스트와 수동 확인 결과를 함께 기록한다.
 ```
 
 ---
 
-## 7. Technical / AI / 3D / Security Reviewer Prompt
+## 7. Technical / AI / 3D / Security Direct Verification Checklist
 
 ```text
-너는 Still With 프로젝트의 Technical, AI Pipeline, 3D Performance, Security Reviewer다.
-
-작업 위치:
-/Users/jungwuk/Documents/works/still-with-review-tech
-
-브랜치:
-codex/review-tech-reliability
+통합 담당자는 Still With 프로젝트의 Technical, AI Pipeline, 3D Performance, Security 관점을 직접 검증한다.
 
 먼저 PRD.md, DESIGN.md, AGENT_WORKTREE_PLAN.md를 읽어라.
 이 작업은 구현이 어느 정도 통합된 codex/integration 기준으로 진행한다.
 
 목표:
-코드를 수정하기 전에 review-only로 기술 blocker를 찾는다. 특히 API key 노출, SQLite/job 안정성, OpenAI/World Labs pipeline, Sora fallback, 3D performance, motion state legality를 집중 검토한다.
+기술 blocker를 직접 찾고, blocker가 있으면 수정한 뒤 관련 검증을 다시 실행한다. 특히 API key 노출, SQLite/job 안정성, OpenAI/World Labs pipeline, Sora fallback, 3D performance, motion state legality를 집중 검토한다.
 
 검토 관점:
 - .env 또는 API key가 client에 노출되는가?
@@ -490,6 +478,5 @@ codex/review-tech-reliability
 - blocker/high/medium/low로 분류한다.
 - 각 finding은 파일 경로와 가능하면 line을 포함한다.
 - blocker가 없다면 "Zero technical/AI/3D/security blockers"라고 명확히 말한다.
-- 수정은 하지 말고 리뷰 결과만 제출한다.
+- 실행한 테스트와 수동 확인 결과를 함께 기록한다.
 ```
-

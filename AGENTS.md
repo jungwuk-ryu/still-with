@@ -33,14 +33,14 @@ Run `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` before 
 - Do not broaden feature scope during integration. Fix glue, contracts, tests, and demo-safe fallbacks.
 - User-facing web UI copy must remain English.
 
-## Required Review Loop For Code Changes
+## Required Direct Verification For Code Changes
 
-For any code-changing integration task, work with two reviewer subagents before final handoff:
+For any code-changing integration task, do not use reviewer subagents before final handoff. The integration owner must personally review and verify the current result from both perspectives:
 
-1. Reviewer R1: product correctness, UX, emotional safety, accessibility, and English copy.
-2. Reviewer R2: technical architecture, shared contracts, provider/storage/db/job flow, security, reliability, and tests.
+1. Product correctness, UX, emotional safety, accessibility, and English copy.
+2. Technical architecture, shared contracts, provider/storage/db/job flow, security, reliability, and tests.
 
-Both reviewers must inspect the current integration result independently. Fix every `blocker` finding, rerun the relevant validation, and repeat the review discussion until both reviewers report zero blockers. Do not ignore reviewer blockers without documenting the technical reason and an explicit alternative fix.
+Document any `blocker` findings, fix every blocker, rerun the relevant validation, and repeat the direct review and test loop until zero blockers remain. Do not hand off code-changing integration work without listing the commands or manual checks performed and any remaining non-blocking risks.
 
 ## Integration Workflow
 
