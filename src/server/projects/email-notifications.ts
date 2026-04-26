@@ -172,6 +172,34 @@ export async function sendProjectCompletionNotifications(
   return sentCount;
 }
 
+export async function sendProjectCompletionEmailSubscriptionConfirmation(
+  projectId: string,
+  email: string
+): Promise<void> {
+  const normalizedEmail = normalizeEmail(email);
+
+  if (!normalizedEmail || !isValidEmail(normalizedEmail)) {
+    throw new CompletionEmailSubscriptionError(
+      "Enter a valid email address.",
+      400
+    );
+  }
+
+  if (!getResendApiKey() || !getCompletionEmailAppUrl()) {
+    throw new CompletionEmailSubscriptionError(
+      "Email notifications are not available right now.",
+      503
+    );
+  }
+
+  await sendResendEmail(
+    buildSubscriptionConfirmationEmail({
+      to: email.trim(),
+      projectId
+    })
+  );
+}
+
 export function enqueueProjectCompletionEmailJob(
   projectId: string,
   db: DatabaseClient = getDatabase()
@@ -424,6 +452,52 @@ function buildCompletionEmail(input: {
       '<p style="margin: 0 0 24px; color: #5f5851; font-size: 16px; line-height: 1.6;">The room prepared from your photos is available now. Open it whenever you feel ready.</p>',
       `<a href="${escapeHtml(spaceUrl)}" style="display: inline-block; border-radius: 999px; background: #23201d; color: #ffffff; padding: 12px 18px; text-decoration: none; font-size: 14px;">Enter the space</a>`,
       '<p style="margin: 24px 0 0; color: #736b63; font-size: 13px; line-height: 1.5;">This is a single notification for this memory space.</p>',
+      "</div>",
+      "</div>"
+    ].join("")
+  };
+}
+
+function buildSubscriptionConfirmationEmail(input: {
+  to: string;
+  projectId: string;
+}): {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+} {
+  const appUrl = getCompletionEmailAppUrl();
+
+  if (!appUrl) {
+    throw new Error("NEXT_PUBLIC_APP_URL must be configured for email links.");
+  }
+
+  const loadingUrl = new URL(
+    `/projects/${input.projectId}/loading`,
+    appUrl
+  ).toString();
+
+  return {
+    to: input.to,
+    subject: "Your Still With email reminder is set",
+    text: [
+      "Your email reminder is set.",
+      "",
+      "We will send one quiet note when your memory space is ready.",
+      "",
+      `Return to the loading page: ${loadingUrl}`,
+      "",
+      "Still With"
+    ].join("\n"),
+    html: [
+      '<div style="font-family: Georgia, serif; color: #23201d; background: #f7f8f9; padding: 28px;">',
+      '<div style="max-width: 560px; margin: 0 auto; background: rgba(255,255,255,0.82); border: 1px solid rgba(243,26,124,0.18); border-radius: 24px; padding: 28px; box-shadow: 0 18px 60px rgba(19,21,23,0.08);">',
+      '<p style="margin: 0 0 12px; color: #f31a7c; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase;">Still With</p>',
+      '<h1 style="margin: 0 0 16px; font-size: 28px; line-height: 1.2; font-weight: 500;">Your email reminder is set.</h1>',
+      '<p style="margin: 0 0 24px; color: #5f5851; font-size: 16px; line-height: 1.6;">We will send one quiet note when your memory space is ready.</p>',
+      `<a href="${escapeHtml(loadingUrl)}" style="display: inline-block; border-radius: 999px; background: #23201d; color: #ffffff; padding: 12px 18px; text-decoration: none; font-size: 14px;">Return to the loading page</a>`,
+      '<p style="margin: 24px 0 0; color: #736b63; font-size: 13px; line-height: 1.5;">This confirms that the notification was set for this memory space.</p>',
       "</div>",
       "</div>"
     ].join("")

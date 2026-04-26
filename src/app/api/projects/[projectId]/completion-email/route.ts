@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   CompletionEmailSubscriptionError,
+  sendProjectCompletionEmailSubscriptionConfirmation,
   subscribeToProjectCompletionEmail
 } from "@/server/projects";
 import { ensureGenerationWorkerStarted } from "@/server/jobs/runtime";
@@ -24,9 +25,24 @@ export async function POST(
       ensureGenerationWorkerStarted();
     }
 
+    let confirmationEmailSent = false;
+
+    if (!result.alreadyReady) {
+      try {
+        await sendProjectCompletionEmailSubscriptionConfirmation(projectId, email);
+        confirmationEmailSent = true;
+      } catch (confirmationError) {
+        console.error("Completion email subscription confirmation failed", {
+          projectId,
+          error: confirmationError
+        });
+      }
+    }
+
     return NextResponse.json(
       {
         status: emailWasSent ? "sent" : emailQueued ? "queued" : "subscribed",
+        confirmationEmailSent,
         message: emailWasSent
           ? "Your link has been emailed."
           : emailQueued
