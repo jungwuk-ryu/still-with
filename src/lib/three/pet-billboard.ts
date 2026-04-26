@@ -417,11 +417,15 @@ export function createPetBillboard(options: PetBillboardOptions): PetBillboard {
       motionKey !== null
         ? Math.max(motionAge, 0)
         : getFallbackAnimationElapsedSeconds(timeSeconds);
-    const transform = sampleFallbackAnimation(activeFallbackAnimation, ageSeconds);
+    const transform = sampleFallbackAnimation(
+      activeFallbackAnimation,
+      ageSeconds,
+      isCurrentPlaybackLooping()
+    );
 
     group.position.x +=
       transform.translateXPercent * options.width + transform.translateXPx;
-    group.position.y -=
+    group.position.y +=
       transform.translateYPercent * options.height + transform.translateYPx;
     group.scale.set(transform.scaleX, transform.scaleY, 1);
     group.rotation.z = transform.rotationZ;
@@ -710,10 +714,11 @@ function applyTranslateArg(
 
 function sampleFallbackAnimation(
   animation: FallbackAnimation,
-  ageSeconds: number
+  ageSeconds: number,
+  loop: boolean
 ): FallbackTransform {
   const durationSeconds = Math.max(animation.durationMs / 1000, 0.25);
-  const progress = animation.loopable
+  const progress = loop
     ? (ageSeconds % durationSeconds) / durationSeconds
     : clamp(ageSeconds / durationSeconds, 0, 1);
   const keyframes = animation.keyframes;

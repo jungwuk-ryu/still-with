@@ -37,7 +37,7 @@ import { getPetProfileRecord } from "@/server/jobs/pet-analysis/pet-profile-repo
 import { createFallbackStillAnimationAsset } from "./fallback";
 
 const DEFAULT_REMOTE_PROVIDER_ATTEMPT_TIMEOUT_MS = 60_000;
-const DEFAULT_REMOTE_MOTION_ATTEMPT_LIMIT = 2;
+const DEFAULT_REMOTE_MOTION_ATTEMPT_LIMIT = REQUIRED_MOTION_KEYS.length;
 
 export interface PetVideoJobPayload {
   petProfile: PetProfile;

@@ -5,6 +5,7 @@ import type {
   PetRuntimeState,
   WorldAsset
 } from "@/types";
+import type { PetMotionKey } from "@/pet/motion-set";
 
 export type WorldAssetTier = "100k" | "500k" | "full-res" | "pano" | "stub";
 
@@ -80,6 +81,7 @@ export type MotionIntentKey =
 export interface PlannedMotion {
   sequenceId: string;
   key: MotionIntentKey;
+  motionKey: PetMotionKey;
   clipId: string | null;
   videoUrl: string | null;
   fromState: string;
@@ -92,6 +94,7 @@ export interface ConversationTurnResult {
   message: string;
   assistantMessage: string;
   motion: PlannedMotion;
+  motionQueue: PlannedMotion[];
   petState: PetRuntimeState;
   model: string | null;
 }

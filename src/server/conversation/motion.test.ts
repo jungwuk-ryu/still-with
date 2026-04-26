@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { MotionClip, PetRuntimeState } from "@/types";
 import {
   applyPlannedMotion,
+  applyPlannedMotionSequence,
   fallbackAssistantMessage,
-  planMotionFromClips
+  planMotionFromClips,
+  planMotionQueueFromClips
 } from "./motion";
+import { selectMotionIntentWithAgent } from "./motion-agent";
 
 const runtimeState: PetRuntimeState = {
   projectId: "project-1",
@@ -24,7 +27,7 @@ function createClip(
   loopable = false
 ): MotionClip {
   return {
-    id: "clip-1",
+    id: `clip-${motionKey}`,
     projectId: "project-1",
     petProfileId: "pet-1",
     motionKey,
@@ -57,9 +60,18 @@ const clip = createClip(
 describe("motion intent planning", () => {
   it("selects ready clips from the pet contract", () => {
     const motion = planMotionFromClips("sit", [clip], runtimeState);
+    const { motionQueue } = planMotionQueueFromClips("sit", [clip], runtimeState);
 
-    expect(motion.clipId).toBe("clip-1");
+    expect(motion.clipId).toBe("clip-stand_to_sit");
     expect(motion.videoUrl).toBe("/api/storage/pets/sit.mp4");
+    expect(motion.key).toBe("sit");
+    expect(motion.motionKey).toBe("stand_to_sit");
+    expect(motion).toMatchObject({
+      key: motionQueue[0]?.key,
+      motionKey: motionQueue[0]?.motionKey,
+      clipId: motionQueue[0]?.clipId,
+      videoUrl: motionQueue[0]?.videoUrl
+    });
     expect(motion.toState).toBe("sit");
     expect(motion.sequenceId).toEqual(expect.any(String));
   });
@@ -80,7 +92,8 @@ describe("motion intent planning", () => {
       );
       const nextState = applyPlannedMotion(runtimeState, motion, intent);
 
-      expect(motion.clipId).toBe("clip-1");
+      expect(motion.clipId).toBe(`clip-${motionKey}`);
+      expect(motion.motionKey).toBe(motionKey);
       expect(motion.toState).toBe(expectedPose);
       expect(nextState.currentPose).toBe(expectedPose);
     }
@@ -112,6 +125,77 @@ describe("motion intent planning", () => {
     expect(motion.videoUrl).toBe("/api/storage/pets/sit-idle.mp4");
     expect(motion.loopable).toBe(true);
     expect(motion.toState).toBe("sit");
+  });
+
+  it("plans a standing Korean sit command as transition then seated idle", async () => {
+    const decision = await selectMotionIntentWithAgent(
+      {
+        message: "앉아!",
+        motionClips: [],
+        runtimeState
+      },
+      { apiKey: null }
+    );
+    const { plan, motionQueue } = planMotionQueueFromClips(
+      decision.intent,
+      [
+        createClip("stand_to_sit", "stand", "sit"),
+        createClip("sit", "sit", "sit", "/api/storage/pets/sit-idle.mp4", true)
+      ],
+      runtimeState,
+      "앉아!"
+    );
+    const nextState = applyPlannedMotionSequence(
+      runtimeState,
+      motionQueue,
+      "앉아!",
+      plan
+    );
+
+    expect(decision.intent).toBe("sit");
+    expect(motionQueue.map((motion) => motion.motionKey)).toEqual([
+      "stand_to_sit",
+      "sit"
+    ]);
+    expect(motionQueue[0]?.loopable).toBe(false);
+    expect(motionQueue[1]?.loopable).toBe(true);
+    expect(nextState.currentPose).toBe("sit");
+    expect(nextState.targetPose).toBeNull();
+    expect(nextState.queuedMotionKeys).toEqual([]);
+  });
+
+  it("stands up before turning when the pet is currently sitting", () => {
+    const sittingRuntimeState: PetRuntimeState = {
+      ...runtimeState,
+      currentPose: "sit"
+    };
+    const { plan, motionQueue } = planMotionQueueFromClips(
+      "turn_around",
+      [
+        createClip("sit_to_stand", "sit", "stand"),
+        createClip("turn_360", "stand", "stand"),
+        createClip("stand_idle", "stand", "stand", "/api/storage/pets/idle.mp4", true)
+      ],
+      sittingRuntimeState,
+      "turn around"
+    );
+    const nextState = applyPlannedMotionSequence(
+      sittingRuntimeState,
+      motionQueue,
+      "turn around",
+      plan
+    );
+
+    expect(motionQueue.map((motion) => motion.motionKey)).toEqual([
+      "sit_to_stand",
+      "turn_360",
+      "stand_idle"
+    ]);
+    expect(motionQueue[0]?.fromState).toBe("sit");
+    expect(motionQueue.at(-1)?.loopable).toBe(true);
+    expect(nextState.currentPose).toBe("stand");
+    expect(nextState.targetPose).toBeNull();
+    expect(nextState.queuedMotionKeys).toEqual([]);
   });
 
   it("returns action status copy instead of pet dialogue", () => {

@@ -85,7 +85,7 @@ describe("motion intent agent", () => {
     expect(JSON.stringify(requestBody)).toContain("currentPetPose");
   });
 
-  it("falls back without semantic word matching when the agent is unavailable", async () => {
+  it("falls back to local semantic matching when the agent is unavailable", async () => {
     const decision = await selectMotionIntentWithAgent(
       {
         message: "앉아!",
@@ -98,9 +98,69 @@ describe("motion intent agent", () => {
     );
 
     expect(decision).toEqual({
-      intent: "look_at_me",
+      intent: "sit",
       model: null,
       source: "fallback"
     });
   });
+
+  it("maps Korean fallback movement cues to motion intents", async () => {
+    await expect(
+      selectMotionIntentWithAgent(
+        {
+          message: "한 바퀴 돌아",
+          motionClips: [createClip("turn_360", "stand", "stand")],
+          runtimeState
+        },
+        { apiKey: null }
+      )
+    ).resolves.toMatchObject({ intent: "turn_around", source: "fallback" });
+
+    await expect(
+      selectMotionIntentWithAgent(
+        {
+          message: "이리 와줘",
+          motionClips: [createClip("walk_small", "stand", "stand")],
+          runtimeState
+        },
+        { apiKey: null }
+      )
+    ).resolves.toMatchObject({ intent: "come_closer", source: "fallback" });
+
+    await expect(
+      selectMotionIntentWithAgent(
+        {
+          message: "기다려",
+          motionClips: [createClip("stand_idle", "stand", "stand")],
+          runtimeState
+        },
+        { apiKey: null }
+      )
+    ).resolves.toMatchObject({ intent: "idle", source: "fallback" });
+  });
+
+  it.each([
+    ["sit", "sit"],
+    ["stand", "idle"],
+    ["turn", "turn_around"],
+    ["come", "come_closer"],
+    ["look", "look_at_me"]
+  ] as const)(
+    "maps English fallback cue %s to %s",
+    async (message, expectedIntent) => {
+      await expect(
+        selectMotionIntentWithAgent(
+          {
+            message,
+            motionClips: [],
+            runtimeState
+          },
+          { apiKey: null }
+        )
+      ).resolves.toMatchObject({
+        intent: expectedIntent,
+        source: "fallback"
+      });
+    }
+  );
 });

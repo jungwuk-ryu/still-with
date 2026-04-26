@@ -48,6 +48,7 @@ export function MemoryScene({
   const runtimeRef = useRef<SceneRuntime | null>(null);
   const motionRef = useRef<PlannedMotion | null>(activeMotion);
   const motionStartedAtRef = useRef(0);
+  const initialPetPoseRef = useRef(petState.currentPose);
   const cameraControls = useMemoryCamera();
   const [assetStatus, setAssetStatus] = useState("Preparing the room");
   const [assetTier, setAssetTier] = useState(manifest.world.tierHint);
@@ -166,7 +167,7 @@ export function MemoryScene({
     const petPlacement = movePetPlacementForward(manifest.pet.placement);
     const billboard = createPetBillboard({
       ...petPlacement,
-      videoUrl: getIdleVideoUrlForPose(manifest, petState.currentPose),
+      videoUrl: getIdleVideoUrlForPose(manifest, initialPetPoseRef.current),
       chromaKeyColor: manifest.pet.chromaKeyColor,
       posterUrl: manifest.pet.posterUrl
     });

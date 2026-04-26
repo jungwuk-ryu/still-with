@@ -1,5 +1,9 @@
 import { getOpenAIApiKey } from "@/lib/env";
-import { PET_MOTION_DEFINITIONS } from "@/pet/motion-set";
+import {
+  PET_MOTION_DEFINITIONS,
+  type PetMotionKey
+} from "@/pet/motion-set";
+import { inferMotionKeyFromCommand } from "@/pet/transition-planner";
 import type { MotionClip, PetRuntimeState } from "@/types";
 import type { MotionIntentKey } from "./types";
 
@@ -158,7 +162,73 @@ function buildAvailableMotionContract(motionClips: readonly MotionClip[]) {
 }
 
 function inferFallbackIntent(message: string): MotionIntentKey {
-  return message.trim() ? "look_at_me" : "idle";
+  const trimmed = message.trim();
+
+  if (!trimmed) {
+    return "idle";
+  }
+
+  const inferredMotionKey =
+    inferMotionKeyFromCommand(trimmed) ??
+    inferAdditionalEnglishMotionKey(trimmed) ??
+    inferKoreanMotionKey(trimmed);
+
+  switch (inferredMotionKey) {
+    case "stand_to_sit":
+    case "sit":
+      return "sit";
+    case "sit_to_stand":
+    case "stand_idle":
+      return "idle";
+    case "turn_360":
+      return "turn_around";
+    case "walk_small":
+      return "come_closer";
+    case "look_at_camera":
+      return "look_at_me";
+    default:
+      return "look_at_me";
+  }
+}
+
+function inferAdditionalEnglishMotionKey(message: string): PetMotionKey | null {
+  const normalized = message.toLowerCase().replace(/[_-]+/g, " ").trim();
+
+  if (/\bcome\b/.test(normalized)) {
+    return "walk_small";
+  }
+
+  return null;
+}
+
+function inferKoreanMotionKey(message: string): PetMotionKey | null {
+  const normalized = message.toLowerCase().replace(/\s+/g, " ");
+
+  if (/기다려|멈춰|가만히|쉬어/.test(normalized)) {
+    return "stand_idle";
+  }
+
+  if (/앉/.test(normalized)) {
+    return "stand_to_sit";
+  }
+
+  if (/일어나|서 ?봐|서 ?줘|서있|서 있어|기상/.test(normalized)) {
+    return "stand_idle";
+  }
+
+  if (/돌아|회전|빙글|턴|한 ?바퀴/.test(normalized)) {
+    return "turn_360";
+  }
+
+  if (/이리 ?와|가까이|다가와|걸어|앞으로|와 ?줘/.test(normalized)) {
+    return "walk_small";
+  }
+
+  if (/봐|쳐다|여기|눈 ?맞|카메라/.test(normalized)) {
+    return "look_at_camera";
+  }
+
+  return null;
 }
 
 function coerceMotionIntent(value: unknown): MotionIntentKey | null {

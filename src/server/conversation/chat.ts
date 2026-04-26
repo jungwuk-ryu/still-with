@@ -3,9 +3,9 @@ import {
   updatePetRuntimeState
 } from "./experience-manifest";
 import {
-  applyPlannedMotion,
+  applyPlannedMotionSequence,
   fallbackAssistantMessage,
-  planMotionFromClips
+  planMotionQueueFromClips
 } from "./motion";
 import { selectMotionIntentWithAgent } from "./motion-agent";
 import type { ConversationTurnResult } from "./types";
@@ -24,19 +24,27 @@ export async function createConversationTurn(
     runtimeState: manifest.pet.runtimeState
   });
   const intent = decision.intent;
-  const motion = planMotionFromClips(
+  const { plan, motionQueue } = planMotionQueueFromClips(
     intent,
     manifest.pet.motionClips,
-    manifest.pet.runtimeState
+    manifest.pet.runtimeState,
+    trimmedMessage
   );
+  const motion = motionQueue[0];
   const petState = updatePetRuntimeState(
-    applyPlannedMotion(manifest.pet.runtimeState, motion, trimmedMessage)
+    applyPlannedMotionSequence(
+      manifest.pet.runtimeState,
+      motionQueue,
+      trimmedMessage,
+      plan
+    )
   );
 
   return {
     message: trimmedMessage,
     assistantMessage: fallbackAssistantMessage(intent),
     motion,
+    motionQueue,
     petState,
     model: decision.model
   };

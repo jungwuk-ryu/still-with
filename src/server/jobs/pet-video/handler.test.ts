@@ -261,7 +261,7 @@ describe("handlePetVideoJob", () => {
     });
   });
 
-  it("limits remote motion generation for the demo and falls back for remaining clips", async () => {
+  it("attempts remote motion generation for every requested clip by default", async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "still-with-pet-video-"));
     db = openDatabase(path.join(tmpDir, "test.sqlite"));
     const storage = new LocalStorageDriver(path.join(tmpDir, "storage"));
@@ -271,6 +271,7 @@ describe("handlePetVideoJob", () => {
     updateProjectSelectedPet(project.id, petProfile.id, db);
     await seedMotionKeyframe(storage, project.id, petProfile.id, "stand_idle");
     await seedMotionKeyframe(storage, project.id, petProfile.id, "sit");
+    await seedMotionKeyframe(storage, project.id, petProfile.id, "walk_small");
     const calls: string[] = [];
     const veoProvider: VeoProvider = {
       providerName: "veo",
@@ -316,12 +317,83 @@ describe("handlePetVideoJob", () => {
       ])
     );
 
-    expect(calls).toEqual(["stand_idle", "sit"]);
+    expect(calls).toEqual(["stand_idle", "sit", "walk_small"]);
     expect(clips.stand_idle.status).toBe("ready");
     expect(clips.stand_idle.providerName).toBe("veo");
     expect(clips.sit.status).toBe("ready");
     expect(clips.sit.providerName).toBe("veo");
     expect(clips.walk_small.status).toBe("ready");
+    expect(clips.walk_small.providerName).toBe("veo");
+    expect(result).toMatchObject({
+      veo: {
+        attempted: true,
+        completedCount: 3,
+        failedCount: 0
+      },
+      fallback: {
+        count: 0
+      }
+    });
+  });
+
+  it("honors an explicit remote motion generation limit", async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "still-with-pet-video-"));
+    db = openDatabase(path.join(tmpDir, "test.sqlite"));
+    const storage = new LocalStorageDriver(path.join(tmpDir, "storage"));
+    const project = createProjectRecord({}, db);
+    const petProfile = createTestPetProfile(project.id);
+    upsertPetProfileRecord(petProfile, db);
+    updateProjectSelectedPet(project.id, petProfile.id, db);
+    await seedMotionKeyframe(storage, project.id, petProfile.id, "stand_idle");
+    await seedMotionKeyframe(storage, project.id, petProfile.id, "sit");
+    await seedMotionKeyframe(storage, project.id, petProfile.id, "walk_small");
+    const calls: string[] = [];
+    const veoProvider: VeoProvider = {
+      providerName: "veo",
+      async createMotionClip(input) {
+        calls.push(input.motionKey);
+        return {
+          operationId: `operation-${input.motionKey}`,
+          status: "succeeded",
+          motionClip: null,
+          raw: {}
+        };
+      },
+      async getMotionClip() {
+        throw new Error("not reached");
+      },
+      async downloadMotionClipContent() {
+        return Buffer.from("fake veo mp4");
+      }
+    };
+    const job = createGenerationJob(
+      {
+        projectId: project.id,
+        type: "pet-video",
+        payload: {
+          petProfile: petProfile as unknown as JsonValue,
+          motionKeys: ["stand_idle", "sit", "walk_small"]
+        }
+      },
+      db
+    );
+
+    const result = await handlePetVideoJob(job, {
+      db,
+      storage,
+      veoProvider,
+      soraProvider: null,
+      pollAttempts: 0,
+      remoteMotionAttemptLimit: 2
+    });
+    const clips = Object.fromEntries(
+      listMotionClipRecords(project.id, db).map((clip) => [
+        clip.motionKey,
+        clip
+      ])
+    );
+
+    expect(calls).toEqual(["stand_idle", "sit"]);
     expect(clips.walk_small.providerName).toBe("fallback");
     expect(clips.walk_small.providerErrorMessage).toContain(
       "remote pet motion generation is limited"
@@ -699,7 +771,7 @@ async function seedMotionKeyframe(
   storage: LocalStorageDriver,
   projectId: string,
   petProfileId: string,
-  motionKey: "stand_idle" | "sit" | "look_at_camera"
+  motionKey: "stand_idle" | "sit" | "look_at_camera" | "walk_small"
 ): Promise<string> {
   const stored = await storage.putObject({
     key: `projects/${projectId}/pet/keyframes/${motionKey}.svg`,
