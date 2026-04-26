@@ -85,6 +85,7 @@ export function LoadingProgress({
   );
   const emailTriggerRef = useRef<HTMLButtonElement | null>(null);
   const emailDialogRef = useRef<HTMLElement | null>(null);
+  const emailInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let isActive = true;
@@ -150,6 +151,7 @@ export function LoadingProgress({
     }
 
     const emailTrigger = emailTriggerRef.current;
+    emailInputRef.current?.focus();
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -359,6 +361,7 @@ export function LoadingProgress({
                 setIsEmailDialogOpen(true);
               }}
             >
+              <span className="completion-email-orb" aria-hidden="true" />
               <span>
                 {hasEmailSubscription
                   ? "Email reminder saved"
@@ -431,6 +434,7 @@ export function LoadingProgress({
                 placeholder="you@example.com"
                 value={email}
                 disabled={isSubmittingEmail}
+                ref={emailInputRef}
                 aria-invalid={emailError ? "true" : undefined}
                 aria-describedby={emailDescribedBy}
                 onChange={(event) => setEmail(event.target.value)}

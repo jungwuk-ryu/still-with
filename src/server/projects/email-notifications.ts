@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { getResendApiKey, getServerEnv } from "@/lib/env";
+import { getResendApiKey } from "@/lib/env";
 import {
   getDatabase,
   getProjectRecord,
@@ -7,6 +7,8 @@ import {
 } from "@/server/db";
 import { createGenerationJob } from "@/server/jobs/repository";
 import { sendResendEmail } from "@/server/providers/resend";
+
+const STALE_SENDING_NOTIFICATION_MS = 5 * 60 * 1_000;
 
 type ProjectEmailNotificationStatus =
   | "pending"
@@ -72,7 +74,7 @@ export async function subscribeToProjectCompletionEmail(
     );
   }
 
-  if (!getResendApiKey()) {
+  if (!getResendApiKey() || !getCompletionEmailAppUrl()) {
     throw new CompletionEmailSubscriptionError(
       "Email notifications are not available right now.",
       503
@@ -174,16 +176,22 @@ export function enqueueProjectCompletionEmailJob(
   projectId: string,
   db: DatabaseClient = getDatabase()
 ): boolean {
+  const staleSendingBefore = new Date(
+    Date.now() - STALE_SENDING_NOTIFICATION_MS
+  ).toISOString();
   const hasPendingNotification = Boolean(
     db
       .prepare(
         `SELECT 1
          FROM project_email_notifications
          WHERE project_id = ?
-           AND status IN ('pending', 'failed')
+           AND (
+             status IN ('pending', 'failed')
+             OR (status = 'sending' AND last_attempt_at <= ?)
+           )
          LIMIT 1`
       )
-      .get(projectId)
+      .get(projectId, staleSendingBefore)
   );
 
   if (!hasPendingNotification || hasActiveCompletionEmailJob(projectId, db)) {
@@ -307,6 +315,9 @@ function claimProjectEmailNotifications(
   db: DatabaseClient
 ): ProjectEmailNotification[] {
   const now = new Date().toISOString();
+  const staleSendingBefore = new Date(
+    Date.now() - STALE_SENDING_NOTIFICATION_MS
+  ).toISOString();
 
   const transaction = db.transaction(() => {
     const rows = db
@@ -314,10 +325,13 @@ function claimProjectEmailNotifications(
         `SELECT *
          FROM project_email_notifications
          WHERE project_id = ?
-           AND status IN ('pending', 'failed')
+           AND (
+             status IN ('pending', 'failed')
+             OR (status = 'sending' AND last_attempt_at <= ?)
+           )
          ORDER BY requested_at ASC`
       )
-      .all(projectId) as ProjectEmailNotificationRow[];
+      .all(projectId, staleSendingBefore) as ProjectEmailNotificationRow[];
 
     if (rows.length === 0) {
       return [];
@@ -384,10 +398,13 @@ function buildCompletionEmail(input: {
   text: string;
   html: string;
 } {
-  const spaceUrl = new URL(
-    `/projects/${input.projectId}/space`,
-    getServerEnv().appUrl
-  ).toString();
+  const appUrl = getCompletionEmailAppUrl();
+
+  if (!appUrl) {
+    throw new Error("NEXT_PUBLIC_APP_URL must be configured for email links.");
+  }
+
+  const spaceUrl = new URL(`/projects/${input.projectId}/space`, appUrl).toString();
 
   return {
     to: input.to,
@@ -422,6 +439,34 @@ function isValidEmail(value: string): boolean {
     value.length <= 254 &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
   );
+}
+
+function getCompletionEmailAppUrl(): string | null {
+  const value =
+    process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://cmuxaim.jungwuk.com";
+
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const url = new URL(value);
+
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return null;
+    }
+
+    if (
+      process.env.NODE_ENV === "production" &&
+      ["localhost", "127.0.0.1", "0.0.0.0"].includes(url.hostname)
+    ) {
+      return null;
+    }
+
+    return url.toString();
+  } catch {
+    return null;
+  }
 }
 
 function escapeHtml(value: string): string {

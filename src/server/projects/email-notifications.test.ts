@@ -14,12 +14,19 @@ import {
 let db: DatabaseClient | null = null;
 let tmpDir: string | null = null;
 const originalResendApiKey = process.env.RESEND_API_KEY;
+const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
 
 afterEach(async () => {
   if (originalResendApiKey === undefined) {
     delete process.env.RESEND_API_KEY;
   } else {
     process.env.RESEND_API_KEY = originalResendApiKey;
+  }
+
+  if (originalAppUrl === undefined) {
+    delete process.env.NEXT_PUBLIC_APP_URL;
+  } else {
+    process.env.NEXT_PUBLIC_APP_URL = originalAppUrl;
   }
 
   db?.close();
@@ -34,6 +41,7 @@ afterEach(async () => {
 describe("project completion email notifications", () => {
   it("stores one normalized pending notification for an in-progress project", async () => {
     process.env.RESEND_API_KEY = "re_test_key";
+    process.env.NEXT_PUBLIC_APP_URL = "https://stillwith.example";
     db = await openTestDatabase();
     const project = createProjectRecord({ status: "preparing_pet" }, db);
 
@@ -88,6 +96,7 @@ describe("project completion email notifications", () => {
 
   it("queues a completion email job when the project is already ready", async () => {
     process.env.RESEND_API_KEY = "re_test_key";
+    process.env.NEXT_PUBLIC_APP_URL = "https://stillwith.example";
     db = await openTestDatabase();
     const project = createProjectRecord({ status: "ready" }, db);
 
@@ -117,6 +126,7 @@ describe("project completion email notifications", () => {
 
   it("rejects subscriptions when email delivery is not configured", async () => {
     delete process.env.RESEND_API_KEY;
+    process.env.NEXT_PUBLIC_APP_URL = "https://stillwith.example";
     db = await openTestDatabase();
     const project = createProjectRecord({ status: "preparing_pet" }, db);
 

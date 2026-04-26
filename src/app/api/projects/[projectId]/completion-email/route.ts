@@ -3,6 +3,7 @@ import {
   CompletionEmailSubscriptionError,
   subscribeToProjectCompletionEmail
 } from "@/server/projects";
+import { ensureGenerationWorkerStarted } from "@/server/jobs/runtime";
 
 export const runtime = "nodejs";
 
@@ -18,6 +19,10 @@ export async function POST(
     const result = await subscribeToProjectCompletionEmail(projectId, email);
     const emailWasSent = result.alreadyReady && result.status === "sent";
     const emailQueued = result.alreadyReady && !emailWasSent;
+
+    if (result.deliveryQueued || emailQueued) {
+      ensureGenerationWorkerStarted();
+    }
 
     return NextResponse.json(
       {

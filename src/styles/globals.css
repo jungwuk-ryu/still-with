@@ -489,6 +489,13 @@ textarea {
   display: grid;
   gap: 8px;
   margin: -4px 0 22px;
+  border: 1px solid rgba(249, 141, 190, 0.22);
+  border-radius: 20px;
+  padding: 14px;
+  background:
+    radial-gradient(circle at 16% 24%, rgba(249, 141, 190, 0.18), transparent 34%),
+    radial-gradient(circle at 86% 18%, rgba(242, 202, 119, 0.13), transparent 30%),
+    rgba(255, 255, 255, 0.055);
 }
 
 .completion-email-trigger {
@@ -496,13 +503,25 @@ textarea {
   min-height: 38px;
   display: inline-flex;
   align-items: center;
+  gap: 10px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 9999px;
-  padding: 0 14px;
+  padding: 0 14px 0 10px;
   color: var(--color-text);
   background: rgba(255, 255, 255, 0.09);
   cursor: pointer;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+}
+
+.completion-email-orb {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  border-radius: 9999px;
+  background:
+    radial-gradient(circle at 38% 34%, #ffffff 0 12%, transparent 13%),
+    linear-gradient(135deg, #f98dbe, #f2ca77);
+  box-shadow: 0 0 22px rgba(249, 141, 190, 0.56);
 }
 
 .completion-email-cta p,
@@ -524,7 +543,9 @@ textarea {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(7, 8, 10, 0.66);
+  background:
+    radial-gradient(circle at 50% 26%, rgba(249, 141, 190, 0.22), transparent 30%),
+    rgba(7, 8, 10, 0.66);
   backdrop-filter: blur(18px);
 }
 
@@ -536,11 +557,10 @@ textarea {
   border-radius: 28px;
   padding: 28px;
   color: var(--color-text);
-  background: linear-gradient(
-    145deg,
-    rgba(42, 37, 41, 0.96),
-    rgba(23, 26, 29, 0.96)
-  );
+  background:
+    radial-gradient(circle at 18% 10%, rgba(249, 141, 190, 0.22), transparent 34%),
+    radial-gradient(circle at 88% 28%, rgba(242, 202, 119, 0.15), transparent 30%),
+    linear-gradient(145deg, rgba(42, 37, 41, 0.94), rgba(23, 26, 29, 0.94));
   box-shadow: 0 28px 90px rgba(0, 0, 0, 0.42);
 }
 
@@ -703,25 +723,48 @@ textarea {
   width: 100%;
   height: 100%;
   display: block;
+  opacity: 0;
+  transition: opacity 420ms ease;
+}
+
+.memory-scene-ready .memory-scene-canvas {
+  opacity: 1;
 }
 
 .space-loading-state {
   position: absolute;
-  top: 16px;
-  left: 16px;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  padding: 24px;
+  color: rgba(19, 21, 23, 0.82);
+  background:
+    linear-gradient(180deg, rgba(249, 252, 255, 0.92), rgba(232, 242, 255, 0.78)),
+    radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.88), transparent 36%);
+  backdrop-filter: blur(18px);
+  pointer-events: none;
+}
+
+.space-loading-state span {
   min-height: 34px;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
   border: 1px solid rgba(19, 21, 23, 0.1);
   border-radius: 9999px;
-  padding: 0 12px;
-  color: rgba(19, 21, 23, 0.72);
+  padding: 0 14px;
+  color: rgba(19, 21, 23, 0.76);
   background: rgba(255, 255, 255, 0.58);
-  backdrop-filter: blur(16px);
   font-size: 13px;
   font-weight: 500;
-  pointer-events: none;
+}
+
+.space-loading-state small {
+  color: rgba(19, 21, 23, 0.52);
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .space-debug-overlay {
@@ -771,7 +814,6 @@ textarea {
   pointer-events: none;
 }
 
-.chat-response,
 .chat-status {
   width: fit-content;
   max-width: min(620px, 100%);
@@ -786,11 +828,6 @@ textarea {
   line-height: 1.35;
   text-align: center;
   pointer-events: auto;
-}
-
-.chat-response {
-  margin-bottom: 10px;
-  padding: 8px 12px;
 }
 
 .chat-status {
@@ -880,11 +917,6 @@ textarea {
   .experience-chat-shell {
     bottom: calc(10px + env(safe-area-inset-bottom));
     width: min(100% - 20px, 780px);
-  }
-
-  .chat-response {
-    max-width: 100%;
-    border-radius: var(--radius-card);
   }
 
   .memory-scene {

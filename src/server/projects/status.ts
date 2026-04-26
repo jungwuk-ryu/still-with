@@ -78,7 +78,10 @@ export function getPublicProjectStatus(
     return null;
   }
 
-  const retryingJob = bundle.retryingJobs[0] ?? null;
+  const retryingJob =
+    bundle.retryingJobs.find(
+      (job) => job.type !== "completion-email" && job.type !== "conversation"
+    ) ?? null;
   const retryStageIndex = retryingJob
     ? getStageIndexForJobType(retryingJob.type)
     : null;
