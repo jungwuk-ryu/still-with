@@ -1,5 +1,7 @@
 import { MemorySpaceClient } from "@/components/space/MemorySpaceClient";
 import { getExperienceManifest } from "@/server/conversation/experience-manifest";
+import { ensureGenerationWorkerStarted } from "@/server/jobs/runtime";
+import { ensureExperienceAudioBackfill } from "@/server/projects/pipeline";
 import { getPublicProjectStatus } from "@/server/projects";
 import { notFound, redirect } from "next/navigation";
 
@@ -20,6 +22,9 @@ export default async function SpacePage({
   if (!status.canEnter) {
     redirect(status.nextRoute ?? `/projects/${projectId}/loading`);
   }
+
+  ensureGenerationWorkerStarted();
+  ensureExperienceAudioBackfill(projectId);
 
   const manifest = getExperienceManifest(projectId);
 

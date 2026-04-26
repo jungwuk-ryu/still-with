@@ -3,9 +3,11 @@ import {
   REQUIRED_EXPERIENCE_AUDIO_ASSETS,
   listAudioAssetRecords
 } from "@/server/audio";
+import { getElevenLabsApiKey } from "@/lib/env";
 import { createGenerationJob } from "@/server/jobs/repository";
 import { listMotionClipRecords } from "@/server/motion";
-import type { DatabaseClient } from "@/server/db";
+import type { GenerationJobStatus } from "@/types";
+import { getDatabase, type DatabaseClient } from "@/server/db";
 import type { JsonValue, PetProfile, Project } from "@/types";
 import {
   getLoadingStage,
@@ -18,7 +20,19 @@ import {
 } from "./repository";
 import { enqueueProjectCompletionEmailJob } from "./email-notifications";
 
-const ACTIVE_JOB_STATUSES = ["queued", "retrying", "running", "succeeded"];
+const ACTIVE_JOB_STATUSES: GenerationJobStatus[] = [
+  "queued",
+  "retrying",
+  "running",
+  "succeeded"
+];
+const IN_FLIGHT_JOB_STATUSES: GenerationJobStatus[] = [
+  "queued",
+  "retrying",
+  "running"
+];
+
+export type ExperienceAudioBackfillStatus = "ready" | "queued" | "unavailable";
 
 export function enqueuePetAnalysisJob(
   projectId: string,
@@ -152,7 +166,7 @@ export function markProjectReadyIfAssetsComplete(
     return null;
   }
 
-  if (!hasRequiredAudioAssets(projectId, db)) {
+  if (!hasTerminalExperienceAudioAssets(projectId, db)) {
     enqueueElevenLabsAudioJob(projectId, db);
     return null;
   }
@@ -182,9 +196,14 @@ export function markProjectReadyIfAssetsComplete(
 
 export function enqueueElevenLabsAudioJob(
   projectId: string,
-  db: DatabaseClient
+  db: DatabaseClient,
+  options: { statuses?: GenerationJobStatus[] } = {}
 ): void {
-  if (hasProjectJob(projectId, "elevenlabs-audio", db)) {
+  if (
+    hasProjectJob(projectId, "elevenlabs-audio", db, undefined, {
+      statuses: options.statuses
+    })
+  ) {
     return;
   }
 
@@ -199,6 +218,37 @@ export function enqueueElevenLabsAudioJob(
   );
 }
 
+export function ensureExperienceAudioBackfill(
+  projectId: string,
+  db: DatabaseClient = getDatabase()
+): ExperienceAudioBackfillStatus {
+  if (hasReadyExperienceAudioAssets(projectId, db)) {
+    return "ready";
+  }
+
+  if (!getElevenLabsApiKey()) {
+    return "unavailable";
+  }
+
+  if (hasProjectJob(projectId, "elevenlabs-audio", db, undefined, {
+    statuses: IN_FLIGHT_JOB_STATUSES
+  })) {
+    return "queued";
+  }
+
+  if (
+    hasTerminalExperienceAudioAssets(projectId, db) &&
+    !hasMissingApiKeySkippedAudio(projectId, db)
+  ) {
+    return "unavailable";
+  }
+
+  enqueueElevenLabsAudioJob(projectId, db, {
+    statuses: IN_FLIGHT_JOB_STATUSES
+  });
+  return "queued";
+}
+
 export function updateProjectToStage(
   projectId: string,
   input: ProjectLifecycleUpdate,
@@ -207,7 +257,25 @@ export function updateProjectToStage(
   return updateProjectLifecycle(projectId, input, db);
 }
 
-function hasRequiredAudioAssets(projectId: string, db: DatabaseClient): boolean {
+export function hasReadyExperienceAudioAssets(
+  projectId: string,
+  db: DatabaseClient
+): boolean {
+  const readyAssets = new Set(
+    listAudioAssetRecords(projectId, db)
+      .filter((asset) => asset.status === "ready" && asset.audioUrl)
+      .map((asset) => `${asset.kind}:${asset.assetKey}`)
+  );
+
+  return REQUIRED_EXPERIENCE_AUDIO_ASSETS.every((asset) =>
+    readyAssets.has(`${asset.kind}:${asset.assetKey}`)
+  );
+}
+
+function hasTerminalExperienceAudioAssets(
+  projectId: string,
+  db: DatabaseClient
+): boolean {
   const terminalAssets = new Set(
     listAudioAssetRecords(projectId, db)
       .filter((asset) => asset.status === "ready" || asset.status === "skipped")
@@ -219,22 +287,35 @@ function hasRequiredAudioAssets(projectId: string, db: DatabaseClient): boolean 
   );
 }
 
+function hasMissingApiKeySkippedAudio(
+  projectId: string,
+  db: DatabaseClient
+): boolean {
+  return listAudioAssetRecords(projectId, db).some(
+    (asset) =>
+      asset.status === "skipped" &&
+      asset.providerErrorMessage?.includes("ELEVENLABS_API_KEY")
+  );
+}
+
 function hasProjectJob(
   projectId: string,
   type: string,
   db: DatabaseClient,
-  payloadSubset?: Record<string, unknown>
+  payloadSubset?: Record<string, unknown>,
+  options: { statuses?: GenerationJobStatus[] } = {}
 ): boolean {
+  const statuses = options.statuses ?? ACTIVE_JOB_STATUSES;
   const rows = db
     .prepare(
       `SELECT payload_json
        FROM generation_jobs
        WHERE project_id = ?
          AND type = ?
-         AND status IN (${ACTIVE_JOB_STATUSES.map(() => "?").join(", ")})
+         AND status IN (${statuses.map(() => "?").join(", ")})
        LIMIT 20`
     )
-    .all(projectId, type, ...ACTIVE_JOB_STATUSES) as Array<{
+    .all(projectId, type, ...statuses) as Array<{
       payload_json: string;
     }>;
 

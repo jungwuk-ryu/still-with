@@ -1,23 +1,28 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createProjectRecord, openDatabase, updateProjectSelectedPet } from "@/server/db";
 import type { DatabaseClient } from "@/server/db";
 import {
   REQUIRED_EXPERIENCE_AUDIO_ASSETS,
   upsertAudioAssetRecord
 } from "@/server/audio";
+import { createGenerationJob } from "@/server/jobs";
 import { upsertPetProfileRecord } from "@/server/jobs/pet-analysis/pet-profile-repository";
 import { upsertMotionClipRecord } from "@/server/motion";
 import { PET_MOTION_DEFINITIONS, REQUIRED_MOTION_KEYS } from "@/pet/motion-set";
 import type { PetProfile } from "@/types";
-import { markProjectReadyIfAssetsComplete } from "./pipeline";
+import {
+  ensureExperienceAudioBackfill,
+  markProjectReadyIfAssetsComplete
+} from "./pipeline";
 
 let db: DatabaseClient | null = null;
 let tmpDir: string | null = null;
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   db?.close();
   db = null;
 
@@ -90,6 +95,83 @@ describe("project generation pipeline", () => {
     expect(readyProject?.status).toBe("ready");
     expect(readyProject?.currentStage).toBe("The door is open");
     expect(readyProject?.completedAt).toEqual(expect.any(String));
+  });
+
+  it("queues audio backfill for existing ready projects whose audio was skipped without an API key", async () => {
+    vi.stubEnv("ELEVENLABS_API_KEY", "test-elevenlabs-key");
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "still-with-pipeline-"));
+    db = openDatabase(path.join(tmpDir, "test.sqlite"));
+    const project = createProjectRecord({ status: "ready" }, db);
+
+    for (const asset of REQUIRED_EXPERIENCE_AUDIO_ASSETS) {
+      upsertAudioAssetRecord(
+        {
+          projectId: project.id,
+          kind: asset.kind,
+          assetKey: asset.assetKey,
+          prompt: "quiet generated audio",
+          audioUrl: null,
+          providerName: "elevenlabs",
+          providerStatus: "skipped",
+          providerErrorMessage: "ELEVENLABS_API_KEY is not configured.",
+          status: "skipped"
+        },
+        db
+      );
+    }
+
+    const priorJob = createGenerationJob(
+      {
+        projectId: project.id,
+        type: "elevenlabs-audio"
+      },
+      db
+    );
+    db.prepare(
+      `UPDATE generation_jobs
+       SET status = 'succeeded',
+           completed_at = @now,
+           updated_at = @now
+       WHERE id = @id`
+    ).run({ id: priorJob.id, now: new Date().toISOString() });
+
+    const backfillStatus = ensureExperienceAudioBackfill(project.id, db);
+    const jobs = db
+      .prepare(
+        `SELECT type, status
+         FROM generation_jobs
+         WHERE project_id = ?
+           AND type = 'elevenlabs-audio'
+         ORDER BY created_at ASC`
+      )
+      .all(project.id) as Array<{ type: string; status: string }>;
+
+    expect(backfillStatus).toBe("queued");
+    expect(jobs).toHaveLength(2);
+    expect(jobs.at(-1)).toMatchObject({
+      type: "elevenlabs-audio",
+      status: "queued"
+    });
+  });
+
+  it("does not enqueue existing project audio backfill when ElevenLabs is unavailable", async () => {
+    vi.stubEnv("ELEVENLABS_API_KEY", "");
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "still-with-pipeline-"));
+    db = openDatabase(path.join(tmpDir, "test.sqlite"));
+    const project = createProjectRecord({ status: "ready" }, db);
+
+    const backfillStatus = ensureExperienceAudioBackfill(project.id, db);
+    const jobCount = db
+      .prepare(
+        `SELECT COUNT(*) AS count
+         FROM generation_jobs
+         WHERE project_id = ?
+           AND type = 'elevenlabs-audio'`
+      )
+      .get(project.id) as { count: number };
+
+    expect(backfillStatus).toBe("unavailable");
+    expect(jobCount.count).toBe(0);
   });
 });
 

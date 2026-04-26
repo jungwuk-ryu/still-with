@@ -40,7 +40,11 @@ export function MemorySpaceClient({ manifest }: MemorySpaceClientProps) {
         petState={petState}
         onMotionComplete={handleMotionComplete}
       />
-      <ExperienceAudio audio={manifest.audio} activeMotion={activeMotion} />
+      <ExperienceAudio
+        projectId={manifest.projectId}
+        audio={manifest.audio}
+        activeMotion={activeMotion}
+      />
       <FloatingChatBar
         projectId={manifest.projectId}
         chatAccessToken={manifest.chatAccessToken}

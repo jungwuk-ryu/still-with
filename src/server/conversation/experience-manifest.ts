@@ -175,7 +175,7 @@ export function getExperienceManifest(
   };
 }
 
-function getExperienceAudioManifest(
+export function getExperienceAudioManifest(
   projectId: string,
   db: DatabaseClient
 ): ExperienceAudioManifest {
