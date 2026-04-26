@@ -33,6 +33,40 @@ interface PlaybackRequest {
   onEnded: (() => void) | null;
 }
 
+interface FallbackTransform {
+  translateXPercent: number;
+  translateYPercent: number;
+  translateXPx: number;
+  translateYPx: number;
+  scaleX: number;
+  scaleY: number;
+  rotationZ: number;
+  opacity: number;
+}
+
+interface FallbackAnimationKeyframe {
+  offset: number;
+  transform: FallbackTransform;
+}
+
+interface FallbackAnimation {
+  motionKey: string | null;
+  durationMs: number;
+  loopable: boolean;
+  keyframes: FallbackAnimationKeyframe[];
+}
+
+const IDENTITY_FALLBACK_TRANSFORM: FallbackTransform = {
+  translateXPercent: 0,
+  translateYPercent: 0,
+  translateXPx: 0,
+  translateYPx: 0,
+  scaleX: 1,
+  scaleY: 1,
+  rotationZ: 0,
+  opacity: 1
+};
+
 export function createPetBillboard(options: PetBillboardOptions): PetBillboard {
   const group = new THREE.Group();
   group.position.set(...options.position);
@@ -70,6 +104,10 @@ export function createPetBillboard(options: PetBillboardOptions): PetBillboard {
   let pendingPlayback: PlaybackRequest | null = null;
   let activeEndedCallback: (() => void) | null = null;
   let playbackEndTimer: number | null = null;
+  let currentPlaybackLoop = true;
+  let currentPlaybackDurationMs: number | null = null;
+  let activeFallbackAnimation: FallbackAnimation | null = null;
+  let fallbackAnimationStartedAtSeconds: number | null = null;
 
   function setTexture(texture: THREE.Texture) {
     material.uniforms.map.value = texture;
@@ -127,21 +165,28 @@ export function createPetBillboard(options: PetBillboardOptions): PetBillboard {
   async function loadFallbackManifest(url: string, version: number) {
     try {
       const response = await fetch(url, { cache: "no-store" });
-      const manifest = (await response.json()) as {
-        stillImageUrl?: unknown;
-      };
+      const manifest = (await response.json()) as unknown;
 
       if (version !== loadVersion) {
         return;
       }
 
-      if (typeof manifest.stillImageUrl === "string") {
+      activeFallbackAnimation = parseFallbackAnimationManifest(manifest);
+      fallbackAnimationStartedAtSeconds = null;
+
+      if (activeFallbackAnimation) {
+        schedulePlaybackEndFallback(getCurrentPlaybackDurationMs());
+      }
+
+      if (isRecord(manifest) && typeof manifest.stillImageUrl === "string") {
         loadImageIntoFallback(manifest.stillImageUrl, version);
       } else {
         drawFallback(performance.now() / 1000);
       }
     } catch {
       if (version === loadVersion) {
+        activeFallbackAnimation = null;
+        fallbackAnimationStartedAtSeconds = null;
         drawFallback(performance.now() / 1000);
       }
     }
@@ -169,7 +214,7 @@ export function createPetBillboard(options: PetBillboardOptions): PetBillboard {
   function schedulePlaybackEndFallback(durationMs: number | null) {
     clearPlaybackEndTimer();
 
-    if (durationMs === null || video.loop) {
+    if (durationMs === null || isCurrentPlaybackLooping()) {
       return;
     }
 
@@ -273,10 +318,14 @@ export function createPetBillboard(options: PetBillboardOptions): PetBillboard {
 
   function startPlayback(request: PlaybackRequest) {
     activeEndedCallback = request.onEnded;
+    currentPlaybackLoop = request.loop;
+    currentPlaybackDurationMs = request.durationMs;
+    video.loop = request.loop;
 
     if (currentVideoUrl === request.url) {
+      fallbackAnimationStartedAtSeconds = null;
+
       if (currentSourceIsVideo) {
-        video.loop = request.loop;
         video.currentTime = 0;
         schedulePlaybackEndFallback(request.loop ? null : request.durationMs);
         void video.play().catch(() => {
@@ -284,12 +333,16 @@ export function createPetBillboard(options: PetBillboardOptions): PetBillboard {
           loadPosterFallback(loadVersion);
           schedulePlaybackEndFallback(request.loop ? null : request.durationMs);
         });
+      } else {
+        schedulePlaybackEndFallback(getCurrentPlaybackDurationMs());
       }
       return;
     }
 
     currentVideoUrl = request.url;
     currentSourceIsVideo = false;
+    activeFallbackAnimation = null;
+    fallbackAnimationStartedAtSeconds = null;
     loadVersion += 1;
     const version = loadVersion;
     resetVideoTexture();
@@ -303,13 +356,12 @@ export function createPetBillboard(options: PetBillboardOptions): PetBillboard {
 
     if (isFallbackManifestUrl(request.url)) {
       void loadFallbackManifest(request.url, version);
-      schedulePlaybackEndFallback(request.loop ? null : request.durationMs);
+      schedulePlaybackEndFallback(getCurrentPlaybackDurationMs());
       return;
     }
 
     currentSourceIsVideo = true;
     video.src = request.url;
-    video.loop = request.loop;
     videoTexture = new THREE.VideoTexture(video);
     videoTexture.colorSpace = THREE.SRGBColorSpace;
     setTexture(videoTexture);
@@ -327,14 +379,13 @@ export function createPetBillboard(options: PetBillboardOptions): PetBillboard {
   return {
     group,
     setVideoUrl,
-    update: (timeSeconds, _motionKey, _motionAge) => {
+    update: (timeSeconds, motionKey, motionAge) => {
       if (!currentVideoUrl && !fallbackHasPoster) {
         drawFallback(timeSeconds);
       }
 
-      group.position.set(...options.position);
-      group.rotation.set(0, 0, 0);
-      group.scale.setScalar(1);
+      resetBillboardTransform();
+      applyFallbackAnimationTransform(timeSeconds, motionKey, motionAge);
     },
     dispose: () => {
       video.removeEventListener("ended", completeCurrentPlayback);
@@ -345,6 +396,57 @@ export function createPetBillboard(options: PetBillboardOptions): PetBillboard {
       mesh.geometry.dispose();
     }
   };
+
+  function resetBillboardTransform() {
+    group.position.set(...options.position);
+    group.rotation.set(0, 0, 0);
+    group.scale.set(1, 1, 1);
+    material.uniforms.opacityMultiplier.value = 1;
+  }
+
+  function applyFallbackAnimationTransform(
+    timeSeconds: number,
+    motionKey: string | null,
+    motionAge: number
+  ) {
+    if (currentSourceIsVideo || !activeFallbackAnimation) {
+      return;
+    }
+
+    const ageSeconds =
+      motionKey !== null
+        ? Math.max(motionAge, 0)
+        : getFallbackAnimationElapsedSeconds(timeSeconds);
+    const transform = sampleFallbackAnimation(activeFallbackAnimation, ageSeconds);
+
+    group.position.x +=
+      transform.translateXPercent * options.width + transform.translateXPx;
+    group.position.y -=
+      transform.translateYPercent * options.height + transform.translateYPx;
+    group.scale.set(transform.scaleX, transform.scaleY, 1);
+    group.rotation.z = transform.rotationZ;
+    material.uniforms.opacityMultiplier.value = transform.opacity;
+  }
+
+  function getFallbackAnimationElapsedSeconds(timeSeconds: number) {
+    if (fallbackAnimationStartedAtSeconds === null) {
+      fallbackAnimationStartedAtSeconds = timeSeconds;
+    }
+
+    return Math.max(timeSeconds - fallbackAnimationStartedAtSeconds, 0);
+  }
+
+  function getCurrentPlaybackDurationMs() {
+    return currentPlaybackDurationMs ?? activeFallbackAnimation?.durationMs ?? null;
+  }
+
+  function isCurrentPlaybackLooping() {
+    if (currentSourceIsVideo) {
+      return video.loop;
+    }
+
+    return currentPlaybackLoop && (activeFallbackAnimation?.loopable ?? true);
+  }
 }
 
 function createChromaKeyMaterial(
@@ -360,9 +462,10 @@ function createChromaKeyMaterial(
     uniforms: {
       map: { value: texture },
       keyColor: { value: keyColor },
-      similarity: { value: chromaKeyColor === "blue" ? 0.28 : 0.3 },
-      smoothness: { value: 0.12 },
-      spill: { value: chromaKeyColor === "blue" ? 0.88 : 0.94 }
+      similarity: { value: chromaKeyColor === "blue" ? 0.3 : 0.32 },
+      smoothness: { value: 0.18 },
+      spill: { value: chromaKeyColor === "blue" ? 0.94 : 0.98 },
+      opacityMultiplier: { value: 1 }
     },
     transparent: true,
     depthTest: false,
@@ -382,6 +485,7 @@ function createChromaKeyMaterial(
       uniform float similarity;
       uniform float smoothness;
       uniform float spill;
+      uniform float opacityMultiplier;
       varying vec2 vUv;
 
       void main() {
@@ -398,13 +502,13 @@ function createChromaKeyMaterial(
           smoothstep(0.045, 0.19, saturation)
         );
         float rawAlpha = color.a * min(distanceAlpha, screenAlpha);
-        float alpha = smoothstep(0.08, 0.34, rawAlpha);
+        float alpha = smoothstep(0.035, 0.42, rawAlpha) * opacityMultiplier;
         float spillAmount = max(
-          smoothstep(0.008, 0.14, channelDominance),
+          smoothstep(0.004, 0.18, channelDominance),
           1.0 - alpha
         ) * spill;
         vec3 neutralized = color.rgb;
-        float edgeSoftness = 1.0 - smoothstep(0.34, 0.82, alpha);
+        float edgeSoftness = 1.0 - smoothstep(0.18, 0.88, alpha);
 
         if (keyColor.g > keyColor.b) {
           neutralized.g = min(
@@ -420,7 +524,7 @@ function createChromaKeyMaterial(
 
         color.rgb = mix(color.rgb, neutralized, spillAmount);
 
-        if (alpha < 0.045) {
+        if (alpha < 0.012) {
           discard;
         }
 
@@ -440,6 +544,282 @@ function getRemainingVideoTimeMs(video: HTMLVideoElement): number | null {
   }
 
   return Math.max((video.duration - video.currentTime) * 1000, 0);
+}
+
+function parseFallbackAnimationManifest(
+  manifest: unknown
+): FallbackAnimation | null {
+  if (!isRecord(manifest)) {
+    return null;
+  }
+
+  const durationMs =
+    typeof manifest.durationMs === "number" && manifest.durationMs > 0
+      ? manifest.durationMs
+      : 1_800;
+  const keyframes = parseFallbackAnimationKeyframes(
+    manifest.transformKeyframes
+  );
+
+  if (keyframes.length === 0) {
+    return null;
+  }
+
+  return {
+    motionKey:
+      typeof manifest.motionKey === "string" ? manifest.motionKey : null,
+    durationMs,
+    loopable: manifest.loopable === true,
+    keyframes
+  };
+}
+
+function parseFallbackAnimationKeyframes(
+  value: unknown
+): FallbackAnimationKeyframe[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map(parseFallbackAnimationKeyframe)
+    .filter((keyframe): keyframe is FallbackAnimationKeyframe => keyframe !== null)
+    .sort((left, right) => left.offset - right.offset);
+}
+
+function parseFallbackAnimationKeyframe(
+  value: unknown
+): FallbackAnimationKeyframe | null {
+  if (!isRecord(value) || typeof value.transform !== "string") {
+    return null;
+  }
+
+  const offset =
+    typeof value.offset === "number" && Number.isFinite(value.offset)
+      ? clamp(value.offset, 0, 1)
+      : 0;
+  const opacity =
+    typeof value.opacity === "number" && Number.isFinite(value.opacity)
+      ? clamp(value.opacity, 0, 1)
+      : 1;
+
+  return {
+    offset,
+    transform: {
+      ...parseFallbackTransform(value.transform),
+      opacity
+    }
+  };
+}
+
+function parseFallbackTransform(transform: string): FallbackTransform {
+  const parsed = { ...IDENTITY_FALLBACK_TRANSFORM };
+  const transformPattern = /([a-zA-Z]+)\(([^)]+)\)/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = transformPattern.exec(transform)) !== null) {
+    const fn = match[1]?.toLowerCase();
+    const args = splitTransformArgs(match[2] ?? "");
+
+    switch (fn) {
+      case "translate":
+        applyTranslateArg(parsed, "x", args[0]);
+        applyTranslateArg(parsed, "y", args[1]);
+        break;
+      case "translatex":
+        applyTranslateArg(parsed, "x", args[0]);
+        break;
+      case "translatey":
+        applyTranslateArg(parsed, "y", args[0]);
+        break;
+      case "scale": {
+        const scaleX = parseFiniteNumber(args[0]);
+        const scaleY = parseFiniteNumber(args[1]) ?? scaleX;
+
+        if (scaleX !== null) {
+          parsed.scaleX = scaleX;
+        }
+
+        if (scaleY !== null) {
+          parsed.scaleY = scaleY;
+        }
+        break;
+      }
+      case "scalex": {
+        const scale = parseFiniteNumber(args[0]);
+
+        if (scale !== null) {
+          parsed.scaleX = scale;
+        }
+        break;
+      }
+      case "scaley": {
+        const scale = parseFiniteNumber(args[0]);
+
+        if (scale !== null) {
+          parsed.scaleY = scale;
+        }
+        break;
+      }
+      case "rotate": {
+        const rotation = parseRotationRadians(args[0]);
+
+        if (rotation !== null) {
+          parsed.rotationZ = rotation;
+        }
+        break;
+      }
+    }
+  }
+
+  return parsed;
+}
+
+function applyTranslateArg(
+  transform: FallbackTransform,
+  axis: "x" | "y",
+  value: string | undefined
+) {
+  if (!value) {
+    return;
+  }
+
+  const parsed = parseLength(value);
+
+  if (!parsed) {
+    return;
+  }
+
+  const direction = axis === "y" ? -1 : 1;
+
+  if (axis === "x") {
+    if (parsed.unit === "%") {
+      transform.translateXPercent = parsed.value / 100;
+    } else {
+      transform.translateXPx = parsed.value;
+    }
+    return;
+  }
+
+  if (parsed.unit === "%") {
+    transform.translateYPercent = (parsed.value / 100) * direction;
+  } else {
+    transform.translateYPx = parsed.value * direction;
+  }
+}
+
+function sampleFallbackAnimation(
+  animation: FallbackAnimation,
+  ageSeconds: number
+): FallbackTransform {
+  const durationSeconds = Math.max(animation.durationMs / 1000, 0.25);
+  const progress = animation.loopable
+    ? (ageSeconds % durationSeconds) / durationSeconds
+    : clamp(ageSeconds / durationSeconds, 0, 1);
+  const keyframes = animation.keyframes;
+  const first = keyframes[0];
+  const last = keyframes.at(-1);
+
+  if (!first || !last) {
+    return IDENTITY_FALLBACK_TRANSFORM;
+  }
+
+  if (progress <= first.offset) {
+    return first.transform;
+  }
+
+  if (progress >= last.offset) {
+    return last.transform;
+  }
+
+  const nextIndex = keyframes.findIndex((keyframe) => keyframe.offset >= progress);
+  const next = keyframes[nextIndex] ?? last;
+  const previous = keyframes[Math.max(nextIndex - 1, 0)] ?? first;
+  const span = Math.max(next.offset - previous.offset, 0.0001);
+  const amount = clamp((progress - previous.offset) / span, 0, 1);
+
+  return interpolateFallbackTransform(previous.transform, next.transform, amount);
+}
+
+function interpolateFallbackTransform(
+  from: FallbackTransform,
+  to: FallbackTransform,
+  amount: number
+): FallbackTransform {
+  return {
+    translateXPercent: lerp(from.translateXPercent, to.translateXPercent, amount),
+    translateYPercent: lerp(from.translateYPercent, to.translateYPercent, amount),
+    translateXPx: lerp(from.translateXPx, to.translateXPx, amount),
+    translateYPx: lerp(from.translateYPx, to.translateYPx, amount),
+    scaleX: lerp(from.scaleX, to.scaleX, amount),
+    scaleY: lerp(from.scaleY, to.scaleY, amount),
+    rotationZ: lerp(from.rotationZ, to.rotationZ, amount),
+    opacity: lerp(from.opacity, to.opacity, amount)
+  };
+}
+
+function splitTransformArgs(value: string): string[] {
+  return value
+    .split(/[,\s]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseLength(value: string): { value: number; unit: "%" | "px" } | null {
+  const trimmed = value.trim();
+
+  if (trimmed.endsWith("%")) {
+    const number = parseFiniteNumber(trimmed.slice(0, -1));
+    return number === null ? null : { value: number, unit: "%" };
+  }
+
+  if (trimmed.endsWith("px")) {
+    const number = parseFiniteNumber(trimmed.slice(0, -2));
+    return number === null ? null : { value: number, unit: "px" };
+  }
+
+  const number = parseFiniteNumber(trimmed);
+  return number === null ? null : { value: number, unit: "px" };
+}
+
+function parseRotationRadians(value: string | undefined): number | null {
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+
+  if (trimmed.endsWith("deg")) {
+    const degrees = parseFiniteNumber(trimmed.slice(0, -3));
+    return degrees === null ? null : THREE.MathUtils.degToRad(degrees);
+  }
+
+  if (trimmed.endsWith("rad")) {
+    return parseFiniteNumber(trimmed.slice(0, -3));
+  }
+
+  return parseFiniteNumber(trimmed);
+}
+
+function parseFiniteNumber(value: string | undefined): number | null {
+  if (value === undefined) {
+    return null;
+  }
+
+  const number = Number.parseFloat(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function lerp(from: number, to: number, amount: number): number {
+  return from + (to - from) * amount;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 export function createContactShadow(

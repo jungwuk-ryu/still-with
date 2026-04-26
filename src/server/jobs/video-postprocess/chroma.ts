@@ -51,14 +51,14 @@ function buildShaderUniforms(
   return chromaKeyColor === "green"
     ? {
         keyColor: [0, 1, 0],
-        similarity: 0.34,
-        smoothness: 0.08,
-        spill: 0.12
+        similarity: 0.32,
+        smoothness: 0.18,
+        spill: 0.18
       }
     : {
         keyColor: [0, 0.28, 1],
-        similarity: 0.32,
-        smoothness: 0.08,
-        spill: 0.1
+        similarity: 0.3,
+        smoothness: 0.18,
+        spill: 0.16
       };
 }
