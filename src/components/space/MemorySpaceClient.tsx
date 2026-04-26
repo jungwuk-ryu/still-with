@@ -154,7 +154,7 @@ export function MemorySpaceClient({ manifest }: MemorySpaceClientProps) {
         </div>
       ) : null}
       <MemoryScene
-        key={currentManifest.world.sceneClusterId ?? currentManifest.generatedAt}
+        key={`scene-${currentManifest.world.sceneClusterId ?? currentManifest.generatedAt}`}
         manifest={currentManifest}
         activeMotion={activeMotion}
         petState={petState}
@@ -162,7 +162,7 @@ export function MemorySpaceClient({ manifest }: MemorySpaceClientProps) {
         onRoomReady={handleRoomReady}
       />
       <ExperienceAudio
-        key={currentManifest.world.sceneClusterId ?? "default-audio"}
+        key={`audio-${currentManifest.world.sceneClusterId ?? "default"}`}
         projectId={currentManifest.projectId}
         sceneClusterId={currentManifest.world.sceneClusterId}
         audio={currentManifest.audio}
@@ -204,7 +204,7 @@ function DreamSpaceSwitcher({
 
   return (
     <div className="dream-space-switcher" aria-label="Other memory spaces">
-      {alternateSpaces.map((space) => {
+      {alternateSpaces.map((space, index) => {
         const isGenerating = !space.canEnter && space.status !== "failed";
         const label =
           space.status === "failed"
@@ -216,7 +216,7 @@ function DreamSpaceSwitcher({
 
         return (
           <button
-            key={space.sceneClusterId}
+            key={`space-${space.sceneClusterId}-${index}`}
             type="button"
             className={`dream-space-sphere${
               isGenerating ? " dream-space-sphere-generating" : ""
