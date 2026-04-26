@@ -143,6 +143,24 @@ CREATE TABLE IF NOT EXISTS audio_assets (
   UNIQUE(project_id, kind, asset_key)
 );
 
+CREATE TABLE IF NOT EXISTS dream_fragments (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  scene_cluster_id TEXT NOT NULL,
+  source_image_id TEXT NOT NULL,
+  source_image_url TEXT NOT NULL,
+  image_url TEXT,
+  prompt TEXT NOT NULL,
+  status TEXT NOT NULL,
+  provider_error_message TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  FOREIGN KEY(scene_cluster_id) REFERENCES scene_clusters(id) ON DELETE CASCADE,
+  FOREIGN KEY(source_image_id) REFERENCES uploaded_images(id) ON DELETE CASCADE,
+  UNIQUE(project_id, scene_cluster_id, source_image_id)
+);
+
 CREATE TABLE IF NOT EXISTS generation_jobs (
   id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL,
@@ -184,6 +202,7 @@ CREATE INDEX IF NOT EXISTS idx_uploaded_images_project ON uploaded_images(projec
 CREATE INDEX IF NOT EXISTS idx_scene_clusters_project ON scene_clusters(project_id, status);
 CREATE INDEX IF NOT EXISTS idx_motion_clips_project ON motion_clips(project_id, motion_key);
 CREATE INDEX IF NOT EXISTS idx_audio_assets_project ON audio_assets(project_id, kind, asset_key);
+CREATE INDEX IF NOT EXISTS idx_dream_fragments_space ON dream_fragments(project_id, scene_cluster_id, status);
 CREATE INDEX IF NOT EXISTS idx_generation_jobs_claimable
   ON generation_jobs(status, run_after, priority, created_at);
 CREATE INDEX IF NOT EXISTS idx_generation_jobs_project

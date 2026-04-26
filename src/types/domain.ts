@@ -195,6 +195,7 @@ export type GenerationJobType =
   | "video-postprocess"
   | "quality-evaluation"
   | "elevenlabs-audio"
+  | "dream-fragment"
   | "completion-email"
   | "conversation";
 

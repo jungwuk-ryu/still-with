@@ -156,7 +156,11 @@ function markProjectFailedFromJob(
   job: GenerationJob,
   db: DatabaseClient
 ): void {
-  if (job.type === "conversation" || job.type === "completion-email") {
+  if (
+    job.type === "conversation" ||
+    job.type === "completion-email" ||
+    job.type === "dream-fragment"
+  ) {
     return;
   }
 

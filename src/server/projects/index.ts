@@ -1,4 +1,5 @@
 export * from "./clarification";
+export * from "./dream-fragments";
 export * from "./email-notifications";
 export * from "./intake";
 export * from "./pipeline";

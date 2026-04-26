@@ -1,5 +1,6 @@
 import { getDatabase } from "@/server/db";
 import { handleCompletionEmailJob } from "./completion-email/handler";
+import { createDreamFragmentHandler } from "./dream-fragment/handler";
 import { handleElevenLabsAudioJob } from "./elevenlabs-audio/handler";
 import { handlePetAnalysisJob } from "./pet-analysis/handler";
 import { handlePetKeyframeJob } from "./pet-keyframes/handler";
@@ -24,6 +25,7 @@ export function ensureGenerationWorkerStarted(): void {
       "pet-keyframe": (job) => handlePetKeyframeJob(job, { db }),
       "pet-video": (job) => handlePetVideoJob(job, { db }),
       "elevenlabs-audio": (job) => handleElevenLabsAudioJob(job, { db }),
+      "dream-fragment": createDreamFragmentHandler({ db }),
       "completion-email": (job) => handleCompletionEmailJob(job, { db }),
       ...createSpacePipelineHandlers({ db })
     }

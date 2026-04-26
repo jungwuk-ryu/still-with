@@ -30,7 +30,20 @@ interface ProjectSpaceManifestResponse {
   manifest: ExperienceManifest;
 }
 
+interface DreamFragmentsResponse {
+  fragments: DreamFragmentSummary[];
+  pending: boolean;
+}
+
+interface DreamFragmentSummary {
+  id: string;
+  imageUrl: string | null;
+  sourceImageUrl: string;
+  status: "queued" | "generating" | "ready" | "failed";
+}
+
 const SPACE_POLL_INTERVAL_MS = 4_000;
+const DREAM_FRAGMENT_POLL_INTERVAL_MS = 4_000;
 
 export function MemorySpaceClient({ manifest }: MemorySpaceClientProps) {
   const [currentManifest, setCurrentManifest] = useState(manifest);
@@ -48,6 +61,12 @@ export function MemorySpaceClient({ manifest }: MemorySpaceClientProps) {
   >(null);
   const [canPrepareBackgroundSpaces, setCanPrepareBackgroundSpaces] =
     useState(false);
+  const [dreamFragments, setDreamFragments] = useState<DreamFragmentSummary[]>(
+    []
+  );
+  const [dreamFragmentsPending, setDreamFragmentsPending] = useState(false);
+  const [selectedDreamFragment, setSelectedDreamFragment] =
+    useState<DreamFragmentSummary | null>(null);
 
   const handleRoomReady = useCallback(() => {
     setCanPrepareBackgroundSpaces(true);
@@ -96,6 +115,67 @@ export function MemorySpaceClient({ manifest }: MemorySpaceClientProps) {
     }
 
     void pollSpaces();
+
+    return () => {
+      cancelled = true;
+
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [
+    canPrepareBackgroundSpaces,
+    currentManifest.projectId,
+    currentManifest.world.sceneClusterId
+  ]);
+
+  useEffect(() => {
+    const sceneClusterId = currentManifest.world.sceneClusterId;
+
+    if (!canPrepareBackgroundSpaces || !sceneClusterId) {
+      setDreamFragments([]);
+      setDreamFragmentsPending(false);
+      return;
+    }
+
+    let cancelled = false;
+    let timeoutId: number | null = null;
+
+    async function pollDreamFragments() {
+      try {
+        const response = await fetch(
+          buildDreamFragmentsUrl(currentManifest.projectId, sceneClusterId),
+          {
+            cache: "no-store"
+          }
+        );
+
+        if (response.ok) {
+          const result = (await response.json()) as DreamFragmentsResponse;
+
+          if (!cancelled) {
+            setDreamFragments(result.fragments);
+            setDreamFragmentsPending(result.pending);
+
+            if (!result.pending) {
+              return;
+            }
+          }
+        }
+      } catch {
+        // Dream fragments are decorative; the room remains usable.
+      }
+
+      if (!cancelled) {
+        timeoutId = window.setTimeout(() => {
+          void pollDreamFragments();
+        }, DREAM_FRAGMENT_POLL_INTERVAL_MS);
+      }
+    }
+
+    setDreamFragments([]);
+    setDreamFragmentsPending(true);
+    void pollDreamFragments();
 
     return () => {
       cancelled = true;
@@ -213,6 +293,17 @@ export function MemorySpaceClient({ manifest }: MemorySpaceClientProps) {
         switchingSceneClusterId={switchingSceneClusterId}
         onSelect={handleSpaceSelect}
       />
+      <DreamFragmentShelf
+        fragments={dreamFragments}
+        pending={dreamFragmentsPending}
+        onSelect={setSelectedDreamFragment}
+      />
+      {selectedDreamFragment?.imageUrl ? (
+        <DreamFragmentModal
+          fragment={selectedDreamFragment}
+          onClose={() => setSelectedDreamFragment(null)}
+        />
+      ) : null}
       <FloatingChatBar
         projectId={currentManifest.projectId}
         chatAccessToken={currentManifest.chatAccessToken}
@@ -220,6 +311,81 @@ export function MemorySpaceClient({ manifest }: MemorySpaceClientProps) {
         onConversationTurn={handleConversationTurn}
       />
     </main>
+  );
+}
+
+function DreamFragmentShelf({
+  fragments,
+  pending,
+  onSelect
+}: {
+  fragments: DreamFragmentSummary[];
+  pending: boolean;
+  onSelect: (fragment: DreamFragmentSummary) => void;
+}) {
+  const readyFragments = fragments.filter((fragment) => fragment.imageUrl);
+  const pendingCount = pending ? Math.max(1, 2 - readyFragments.length) : 0;
+
+  if (readyFragments.length === 0 && pendingCount === 0) {
+    return null;
+  }
+
+  return (
+    <div className="dream-fragment-shelf" aria-label="Dream photo pieces">
+      {readyFragments.map((fragment) => (
+        <button
+          key={`dream-fragment-${fragment.id}`}
+          type="button"
+          className="dream-fragment-piece"
+          onClick={() => onSelect(fragment)}
+          aria-label="Open dream photo piece"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={fragment.imageUrl ?? ""} alt="" />
+        </button>
+      ))}
+      {Array.from({ length: pendingCount }).map((_, index) => (
+        <div
+          key={`dream-fragment-pending-${index}`}
+          className="dream-fragment-piece dream-fragment-piece-pending"
+          aria-label="Preparing dream photo piece"
+        />
+      ))}
+    </div>
+  );
+}
+
+function DreamFragmentModal({
+  fragment,
+  onClose
+}: {
+  fragment: DreamFragmentSummary;
+  onClose: () => void;
+}) {
+  if (!fragment.imageUrl) {
+    return null;
+  }
+
+  return (
+    <div className="dream-fragment-modal" role="dialog" aria-modal="true">
+      <button
+        type="button"
+        className="dream-fragment-modal-backdrop"
+        aria-label="Close dream photo piece"
+        onClick={onClose}
+      />
+      <div className="dream-fragment-modal-card">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={fragment.imageUrl} alt="Dream photo piece" />
+        <button
+          type="button"
+          className="dream-fragment-modal-close"
+          onClick={onClose}
+        >
+          Close
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -355,6 +521,19 @@ function buildSpacesUrl(
 function buildSpaceManifestUrl(projectId: string, sceneClusterId: string): string {
   const url = new URL(
     `/api/projects/${encodeURIComponent(projectId)}/space`,
+    window.location.origin
+  );
+
+  url.searchParams.set("sceneClusterId", sceneClusterId);
+  return url.pathname + url.search;
+}
+
+function buildDreamFragmentsUrl(
+  projectId: string,
+  sceneClusterId: string
+): string {
+  const url = new URL(
+    `/api/projects/${encodeURIComponent(projectId)}/dream-fragments`,
     window.location.origin
   );
 
