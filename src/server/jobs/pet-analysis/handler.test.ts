@@ -3,11 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { openDatabase, type DatabaseClient } from "@/server/db";
-import { claimNextGenerationJob } from "@/server/jobs";
+import { getGenerationJob } from "@/server/jobs";
 import { createLocalStorageDriver } from "@/server/storage";
 import { createProjectFromUploads, getProjectBundle } from "@/server/projects";
 import type { OpenAIProvider } from "@/server/providers";
-import type { PetProfile } from "@/types";
+import type { GenerationJob, PetProfile } from "@/types";
 import { handlePetAnalysisJob } from "./handler";
 
 let db: DatabaseClient | null = null;
@@ -34,7 +34,7 @@ describe("handlePetAnalysisJob", () => {
       ],
       context
     );
-    const job = claimNextGenerationJob({ workerId: "test-worker" }, context.db);
+    const job = getPetAnalysisJob(context.db);
     const petProfile = createPetProfile(result.project.id);
     const provider = createProvider({
       async analyzePetIdentity(input) {
@@ -76,7 +76,7 @@ describe("handlePetAnalysisJob", () => {
       [createImageUpload("one.jpg"), createImageUpload("two.jpg")],
       context
     );
-    const job = claimNextGenerationJob({ workerId: "test-worker" }, context.db);
+    const job = getPetAnalysisJob(context.db);
     const provider = createProvider({
       async analyzePetIdentity() {
         return {
@@ -95,16 +95,19 @@ describe("handlePetAnalysisJob", () => {
     });
 
     const bundle = getProjectBundle(result.project.id, context.db);
-    const nonAnalysisJobs = context.db
+    const petGenerationJobs = context.db
       .prepare(
-        "SELECT COUNT(*) AS count FROM generation_jobs WHERE project_id = ? AND type <> 'pet-analysis'"
+        `SELECT COUNT(*) AS count
+         FROM generation_jobs
+         WHERE project_id = ?
+           AND type IN ('pet-keyframe', 'pet-video', 'quality-evaluation')`
       )
       .get(result.project.id) as { count: number };
 
     expect(bundle?.project.status).toBe("clarification_required");
     expect(bundle?.project.selectedPetId).toBeNull();
     expect(bundle?.petProfile?.clarificationRequired).toBe(true);
-    expect(nonAnalysisJobs.count).toBe(0);
+    expect(petGenerationJobs.count).toBe(0);
   });
 
   it("marks the project failed when final pet analysis attempt throws", async () => {
@@ -113,7 +116,7 @@ describe("handlePetAnalysisJob", () => {
       [createImageUpload("one.jpg"), createImageUpload("two.jpg")],
       context
     );
-    const job = claimNextGenerationJob({ workerId: "test-worker" }, context.db);
+    const job = getPetAnalysisJob(context.db);
     const provider = createProvider({
       async analyzePetIdentity() {
         throw new Error("provider schema rejected");
@@ -158,6 +161,21 @@ function createImageUpload(fileName: string) {
     size: 12,
     body: Buffer.from("image-bytes")
   };
+}
+
+function getPetAnalysisJob(db: DatabaseClient): GenerationJob {
+  const row = db
+    .prepare(
+      "SELECT id FROM generation_jobs WHERE type = 'pet-analysis' ORDER BY created_at ASC LIMIT 1"
+    )
+    .get() as { id: string } | undefined;
+  const job = row ? getGenerationJob(row.id, db) : null;
+
+  if (!job) {
+    throw new Error("Expected a queued pet-analysis job.");
+  }
+
+  return job;
 }
 
 function createPetProfile(projectId: string): PetProfile {
