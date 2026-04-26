@@ -7,6 +7,7 @@ import type {
 
 export interface ProviderCallContext {
   projectId?: string;
+  sceneClusterId?: string;
   signal?: AbortSignal;
 }
 
@@ -58,6 +59,16 @@ export interface OpenAIProvider {
 export interface WorldLabsCreateWorldInput {
   sceneCluster: SceneCluster;
   seedImageUrls: string[];
+  seedImages?: Array<{
+    url: string;
+    view?: "front" | "left" | "right" | "back" | "panorama";
+    azimuth?: number | null;
+  }>;
+  inputMode?: "multi-image" | "panorama" | "single-image";
+  textPrompt?: string;
+  displayName?: string;
+  model?: string;
+  idempotencyKey?: string;
   context?: ProviderCallContext;
 }
 
