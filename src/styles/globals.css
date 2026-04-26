@@ -529,10 +529,10 @@ textarea {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 50% 44%, rgba(255, 255, 255, 0.48), transparent 38%),
-    radial-gradient(circle at 20% 24%, rgba(255, 255, 255, 0.54), transparent 34%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(247, 248, 249, 0.44));
-  backdrop-filter: blur(2px);
+    radial-gradient(circle at 50% 44%, rgba(255, 255, 255, 0.22), transparent 38%),
+    radial-gradient(circle at 20% 24%, rgba(255, 255, 255, 0.26), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(247, 248, 249, 0.2));
+  backdrop-filter: blur(0.75px);
 }
 
 .space-preview-background img {
@@ -543,12 +543,12 @@ textarea {
   height: 100%;
   object-fit: cover;
   opacity: 0;
-  filter: blur(18px) saturate(0.82) contrast(0.92);
-  transform: scale(1.1);
+  filter: blur(8px) saturate(0.92) contrast(0.98);
+  transform: scale(1.05);
 }
 
 .space-preview-background img:only-child {
-  opacity: 0.66;
+  opacity: 0.78;
   animation: spacePreviewBackgroundEnter 1.4s ease-out both;
 }
 
