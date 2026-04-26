@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { getLocalStorageDir } from "@/lib/env";
+import { signStorageKey } from "./signed-urls";
 import type {
   PutObjectInput,
   StorageDriver,
@@ -49,12 +50,22 @@ export class LocalStorageDriver implements StorageDriver {
   }
 
   getObjectUrl(key: string): string {
-    return `/api/storage/${key.split("/").map(encodeURIComponent).join("/")}`;
+    const encodedKey = key.split("/").map(encodeURIComponent).join("/");
+    return `/api/storage/${encodedKey}?token=${signStorageKey(key, this.rootDir)}`;
   }
 
   private resolveKey(key: string): string {
     if (!key || key.includes("\0") || path.isAbsolute(key)) {
       throw new Error("Storage key must be a non-empty relative path.");
+    }
+
+    if (
+      key
+        .split("/")
+        .filter(Boolean)
+        .some((segment) => segment === "." || segment === "..")
+    ) {
+      throw new Error("Storage key cannot contain dot segments.");
     }
 
     const normalizedKey = path.normalize(key);
