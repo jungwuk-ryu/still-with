@@ -378,18 +378,11 @@ textarea {
   position: relative;
   overflow: hidden;
   z-index: 1;
-  border-color: rgba(243, 26, 124, 0.28);
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: var(--shadow-dream-card-bloom);
+  border-color: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: var(--shadow-heaven-bloom);
   backdrop-filter: blur(22px) saturate(1.18);
   filter: var(--filter-heaven-bloom);
-}
-
-.progress-panel::before {
-  background:
-    radial-gradient(circle at 18% 0%, rgba(243, 26, 124, 0.22), transparent 32%),
-    radial-gradient(circle at 86% 14%, rgba(104, 47, 255, 0.14), transparent 34%),
-    radial-gradient(circle at 50% 100%, rgba(255, 255, 255, 0.72), transparent 42%);
 }
 
 .progress-panel::before,
@@ -457,9 +450,9 @@ textarea {
 
 .stage-list .stage-complete {
   color: var(--color-text);
-  border-color: rgba(243, 26, 124, 0.18);
+  border-color: rgba(255, 255, 255, 0.92);
   background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 0 18px rgba(243, 26, 124, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.72), inset 0 1px 0 rgba(255, 255, 255, 0.72);
   text-shadow: none;
   filter: none;
 }
@@ -488,7 +481,7 @@ textarea {
   margin-bottom: 18px;
   padding: 16px;
   background: rgba(255, 255, 255, 0.74);
-  box-shadow: 0 0 24px rgba(243, 26, 124, 0.16), 0 0 54px rgba(255, 255, 255, 0.52);
+  box-shadow: 0 0 26px rgba(255, 255, 255, 0.72), 0 0 48px rgba(40, 126, 255, 0.08);
 }
 
 .current-stage span {
