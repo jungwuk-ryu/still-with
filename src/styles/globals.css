@@ -1011,12 +1011,28 @@ textarea {
 }
 
 .stage-list .stage-complete {
-  color: var(--color-text);
-  border-color: rgba(255, 255, 255, 0.92);
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.72), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  position: relative;
+  color: rgba(19, 21, 23, 0.74);
+  border-color: rgba(19, 21, 23, 0.1);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(247, 248, 249, 0.64)),
+    rgba(235, 236, 237, 0.44);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    inset 0 0 18px rgba(255, 255, 255, 0.5),
+    0 8px 22px rgba(19, 21, 23, 0.06);
   text-shadow: none;
   filter: none;
+}
+
+.stage-list .stage-complete::after {
+  width: 8px;
+  height: 8px;
+  margin-left: auto;
+  border-radius: 9999px;
+  background: rgba(19, 21, 23, 0.28);
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.72);
+  content: "";
 }
 
 @keyframes dreamCurrentStepAwaken {
