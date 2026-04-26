@@ -173,10 +173,7 @@ export function ensureBackgroundSpaceGeneration(
       projectId,
       "scene-classification",
       db,
-      { backgroundSpaces: true },
-      {
-        statuses: IN_FLIGHT_JOB_STATUSES
-      }
+      { backgroundSpaces: true }
     )
   ) {
     enqueueSceneClassificationJob(projectId, db, {
@@ -399,6 +396,15 @@ export function ensureExperienceAudioBackfill(
   const sceneClusterId = options.sceneClusterId ?? getPrimarySceneClusterId(projectId, db);
   const payloadSubset = sceneClusterId ? { sceneClusterId } : undefined;
 
+  if (
+    sceneClusterId &&
+    !listSceneClusterRecordsForProject(projectId, db).some(
+      (cluster) => cluster.id === sceneClusterId
+    )
+  ) {
+    return "unavailable";
+  }
+
   if (hasReadyExperienceAudioAssets(projectId, db, sceneClusterId)) {
     return "ready";
   }
@@ -440,7 +446,7 @@ export function hasReadyExperienceAudioAssets(
   db: DatabaseClient,
   sceneClusterId?: string | null
 ): boolean {
-  const requiredKeys = getRequiredAudioAssetKeys(sceneClusterId);
+  const requiredKeys = getRequiredAudioAssetKeyCandidates(sceneClusterId);
   const readyAssets = new Set(
     listAudioAssetRecords(projectId, db)
       .filter((asset) => asset.status === "ready" && asset.audioUrl)
@@ -448,7 +454,7 @@ export function hasReadyExperienceAudioAssets(
   );
 
   return requiredKeys.every((asset) =>
-    readyAssets.has(`${asset.kind}:${asset.assetKey}`)
+    asset.assetKeys.some((assetKey) => readyAssets.has(`${asset.kind}:${assetKey}`))
   );
 }
 
@@ -457,7 +463,7 @@ function hasTerminalExperienceAudioAssets(
   db: DatabaseClient,
   sceneClusterId?: string | null
 ): boolean {
-  const requiredKeys = getRequiredAudioAssetKeys(sceneClusterId);
+  const requiredKeys = getRequiredAudioAssetKeyCandidates(sceneClusterId);
   const terminalAssets = new Set(
     listAudioAssetRecords(projectId, db)
       .filter((asset) => asset.status === "ready" || asset.status === "skipped")
@@ -465,7 +471,9 @@ function hasTerminalExperienceAudioAssets(
   );
 
   return requiredKeys.every((asset) =>
-    terminalAssets.has(`${asset.kind}:${asset.assetKey}`)
+    asset.assetKeys.some((assetKey) =>
+      terminalAssets.has(`${asset.kind}:${assetKey}`)
+    )
   );
 }
 
@@ -475,8 +483,8 @@ function hasMissingApiKeySkippedAudio(
   sceneClusterId?: string | null
 ): boolean {
   const requiredKeys = new Set(
-    getRequiredAudioAssetKeys(sceneClusterId).map(
-      (asset) => `${asset.kind}:${asset.assetKey}`
+    getRequiredAudioAssetKeyCandidates(sceneClusterId).flatMap((asset) =>
+      asset.assetKeys.map((assetKey) => `${asset.kind}:${assetKey}`)
     )
   );
 
@@ -488,13 +496,17 @@ function hasMissingApiKeySkippedAudio(
   );
 }
 
-function getRequiredAudioAssetKeys(sceneClusterId?: string | null): Array<{
+function getRequiredAudioAssetKeyCandidates(
+  sceneClusterId?: string | null
+): Array<{
   kind: (typeof REQUIRED_EXPERIENCE_AUDIO_ASSETS)[number]["kind"];
-  assetKey: string;
+  assetKeys: string[];
 }> {
   return REQUIRED_EXPERIENCE_AUDIO_ASSETS.map((asset) => ({
     kind: asset.kind,
-    assetKey: getSceneAudioAssetKey(sceneClusterId, asset.assetKey)
+    assetKeys: sceneClusterId
+      ? [getSceneAudioAssetKey(sceneClusterId, asset.assetKey), asset.assetKey]
+      : [asset.assetKey]
   }));
 }
 

@@ -1,19 +1,15 @@
 import { NextResponse } from "next/server";
-import { getExperienceAudioManifest } from "@/server/conversation/experience-manifest";
+import { getExperienceManifest } from "@/server/conversation/experience-manifest";
+import type { ExperienceSpaceSummary } from "@/server/conversation/types";
 import { getDatabase } from "@/server/db";
 import { ensureGenerationWorkerStarted } from "@/server/jobs/runtime";
-import {
-  ensureExperienceAudioBackfill,
-  type ExperienceAudioBackfillStatus
-} from "@/server/projects/pipeline";
+import { ensureBackgroundSpaceGeneration } from "@/server/projects/pipeline";
 import { getPublicProjectStatus } from "@/server/projects";
-import type { ExperienceAudioManifest } from "@/server/conversation/types";
 
 export const runtime = "nodejs";
 
-export interface ProjectAudioResponse {
-  audio: ExperienceAudioManifest;
-  audioStatus: ExperienceAudioBackfillStatus;
+export interface ProjectSpacesResponse {
+  spaces: ExperienceSpaceSummary[];
 }
 
 export async function GET(
@@ -22,7 +18,7 @@ export async function GET(
 ) {
   const { projectId } = await context.params;
   const url = new URL(request.url);
-  const sceneClusterId = url.searchParams.get("sceneClusterId");
+  const activeSceneClusterId = url.searchParams.get("activeSceneClusterId");
   const db = getDatabase();
   const status = getPublicProjectStatus(projectId, { db });
 
@@ -38,13 +34,14 @@ export async function GET(
   }
 
   ensureGenerationWorkerStarted();
-  const audioStatus = ensureExperienceAudioBackfill(projectId, db, {
-    sceneClusterId
+  ensureBackgroundSpaceGeneration(projectId, db);
+
+  const manifest = getExperienceManifest(projectId, db, {
+    issueAccessTokens: false,
+    sceneClusterId: activeSceneClusterId
   });
-  const audio = getExperienceAudioManifest(projectId, db, sceneClusterId);
 
   return NextResponse.json({
-    audio,
-    audioStatus
-  } satisfies ProjectAudioResponse);
+    spaces: manifest.spaces
+  } satisfies ProjectSpacesResponse);
 }

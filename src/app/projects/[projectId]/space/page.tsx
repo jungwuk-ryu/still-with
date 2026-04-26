@@ -24,9 +24,10 @@ export default async function SpacePage({
   }
 
   ensureGenerationWorkerStarted();
-  ensureExperienceAudioBackfill(projectId);
-
   const manifest = getExperienceManifest(projectId);
+  ensureExperienceAudioBackfill(projectId, undefined, {
+    sceneClusterId: manifest.world.sceneClusterId
+  });
 
   return <MemorySpaceClient manifest={manifest} />;
 }

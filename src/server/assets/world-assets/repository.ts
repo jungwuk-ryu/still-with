@@ -116,6 +116,22 @@ export function getUploadedImagesByIds(
   );
 }
 
+export function listSceneClusterRecordsForProject(
+  projectId: string,
+  db: DatabaseClient = getDatabase()
+): SceneCluster[] {
+  const rows = db
+    .prepare(
+      `SELECT *
+       FROM scene_clusters
+       WHERE project_id = ?
+       ORDER BY created_at ASC`
+    )
+    .all(projectId) as SceneClusterRow[];
+
+  return rows.map(mapSceneClusterRow);
+}
+
 export function createSceneClusterRecord(
   input: CreateSceneClusterRecordInput,
   db: DatabaseClient = getDatabase()
@@ -347,6 +363,41 @@ export function getWorldAssetRecord(
     .get(worldAssetId) as WorldAssetRow | undefined;
 
   return row ? mapWorldAssetRow(row) : null;
+}
+
+export function getWorldAssetForSceneCluster(
+  projectId: string,
+  sceneClusterId: string,
+  db: DatabaseClient = getDatabase()
+): WorldAsset | null {
+  const row = db
+    .prepare(
+      `SELECT *
+       FROM world_assets
+       WHERE project_id = ?
+         AND scene_cluster_id = ?
+       ORDER BY created_at ASC
+       LIMIT 1`
+    )
+    .get(projectId, sceneClusterId) as WorldAssetRow | undefined;
+
+  return row ? mapWorldAssetRow(row) : null;
+}
+
+export function listWorldAssetRecordsForProject(
+  projectId: string,
+  db: DatabaseClient = getDatabase()
+): WorldAsset[] {
+  const rows = db
+    .prepare(
+      `SELECT *
+       FROM world_assets
+       WHERE project_id = ?
+       ORDER BY created_at ASC`
+    )
+    .all(projectId) as WorldAssetRow[];
+
+  return rows.map(mapWorldAssetRow);
 }
 
 function mapUploadedImageRow(row: UploadedImageRow): UploadedImage {

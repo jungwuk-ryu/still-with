@@ -9,6 +9,7 @@ import type {
 } from "@/types";
 import {
   BACKGROUND_MUSIC_ASSET_KEY,
+  getSceneAudioAssetKey,
   listAudioAssetRecords
 } from "@/server/audio";
 import { getDatabase, type DatabaseClient } from "@/server/db/connection";
@@ -16,10 +17,12 @@ import { createSpaceAccessToken } from "@/server/realtime/space-access";
 import type {
   ExperienceAudioManifest,
   ExperienceManifest,
+  ExperienceSpaceSummary,
   MotionIntentKey
 } from "./types";
 
 const DEMO_SPZ_URL = "https://sparkjs.dev/assets/splats/butterfly.spz";
+const MAX_MANIFEST_ALTERNATE_SPACES = 2;
 
 interface WorldAssetRow {
   id: string;
@@ -36,9 +39,24 @@ interface WorldAssetRow {
   initial_camera_pose_json: string | null;
 }
 
+interface SceneClusterRow {
+  id: string;
+  project_id: string;
+  label: string;
+  source_image_ids_json: string;
+  representative_image_ids_json: string;
+  spatial_prompt: string | null;
+  seed_image_urls_json: string;
+  seed_prompt_version: string | null;
+  world_labs_operation_id: string | null;
+  world_id: string | null;
+  status: string;
+}
+
 interface ProjectSelectionRow {
   id: string;
   status: string;
+  display_name: string | null;
   selected_pet_id: string | null;
 }
 
@@ -100,18 +118,22 @@ const DEFAULT_CAMERA_POSE: CameraPose = {
 export function getExperienceManifest(
   projectId: string,
   db: DatabaseClient = getDatabase(),
-  options: { issueAccessTokens?: boolean } = {}
+  options: { issueAccessTokens?: boolean; sceneClusterId?: string | null } = {}
 ): ExperienceManifest {
   const issueAccessTokens = options.issueAccessTokens ?? true;
   const projectSelection = getProjectSelection(projectId, db);
-  const worldAsset = getLatestWorldAsset(projectId, db);
+  const worldAsset = getWorldAssetForManifest(projectId, db, options.sceneClusterId);
+  const sceneCluster = worldAsset
+    ? getSceneCluster(worldAsset.sceneClusterId, db)
+    : null;
+  const activeSceneClusterId = worldAsset?.sceneClusterId ?? sceneCluster?.id ?? null;
   const petProfile = getSelectedPetProfile(
     projectId,
     projectSelection?.selectedPetId ?? null,
     db
   );
   const motionClips = petProfile ? getMotionClips(projectId, petProfile.id, db) : [];
-  const audio = getExperienceAudioManifest(projectId, db);
+  const audio = getExperienceAudioManifest(projectId, db, activeSceneClusterId);
   const runtimeState = getPetRuntimeState(projectId, db) ?? {
     projectId,
     currentPose: "stand",
@@ -137,7 +159,10 @@ export function getExperienceManifest(
 
   return {
     projectId,
+    displayName: projectSelection?.displayName ?? null,
     world: {
+      sceneClusterId: activeSceneClusterId,
+      label: sceneCluster?.label ?? null,
       asset: worldAsset,
       tierHint: worldAsset ? "500k" : "stub",
       spzUrl: worldAsset?.spzUrl500k ?? worldAsset?.spzUrl100k ?? DEMO_SPZ_URL,
@@ -147,6 +172,7 @@ export function getExperienceManifest(
       initialCameraPose: DEFAULT_CAMERA_POSE,
       source: worldAsset ? "database" : "demo-stub"
     },
+    spaces: getExperienceSpaceSummaries(projectId, db, activeSceneClusterId),
     pet: {
       profile: petProfile ? sanitizePetProfileForClient(petProfile) : null,
       motionClips,
@@ -177,12 +203,22 @@ export function getExperienceManifest(
 
 export function getExperienceAudioManifest(
   projectId: string,
-  db: DatabaseClient
+  db: DatabaseClient,
+  sceneClusterId?: string | null
 ): ExperienceAudioManifest {
   const readyAudioAssets = listAudioAssetRecords(projectId, db).filter(
     (asset) => asset.status === "ready" && asset.audioUrl
   );
+  const backgroundAssetKey = getSceneAudioAssetKey(
+    sceneClusterId,
+    BACKGROUND_MUSIC_ASSET_KEY
+  );
   const backgroundMusic =
+    readyAudioAssets.find(
+      (asset) =>
+        asset.kind === "background_music" &&
+        asset.assetKey === backgroundAssetKey
+    )?.audioUrl ??
     readyAudioAssets.find(
       (asset) =>
         asset.kind === "background_music" &&
@@ -192,22 +228,45 @@ export function getExperienceAudioManifest(
 
   for (const asset of readyAudioAssets) {
     const audioUrl = asset.audioUrl;
+    const motionIntent = getMotionIntentForAudioAsset(asset.assetKey, sceneClusterId);
 
     if (
       !audioUrl ||
       asset.kind !== "pet_sound_effect" ||
-      !isMotionIntentKey(asset.assetKey)
+      !motionIntent
     ) {
       continue;
     }
 
-    petSoundEffects[asset.assetKey] = audioUrl;
+    petSoundEffects[motionIntent] = audioUrl;
   }
 
   return {
     backgroundMusicUrl: backgroundMusic,
     petSoundEffects
   };
+}
+
+function getMotionIntentForAudioAsset(
+  assetKey: string,
+  sceneClusterId?: string | null
+): MotionIntentKey | null {
+  if (isMotionIntentKey(assetKey)) {
+    return assetKey;
+  }
+
+  if (!sceneClusterId) {
+    return null;
+  }
+
+  const prefix = `space:${sceneClusterId}:`;
+
+  if (!assetKey.startsWith(prefix)) {
+    return null;
+  }
+
+  const unscopedKey = assetKey.slice(prefix.length);
+  return isMotionIntentKey(unscopedKey) ? unscopedKey : null;
 }
 
 function isMotionIntentKey(value: string): value is MotionIntentKey {
@@ -272,15 +331,30 @@ export function updatePetRuntimeState(
   return state;
 }
 
-function getLatestWorldAsset(
+function getWorldAssetForManifest(
   projectId: string,
-  db: DatabaseClient
+  db: DatabaseClient,
+  sceneClusterId?: string | null
 ): WorldAsset | null {
+  if (sceneClusterId) {
+    const row = db
+      .prepare(
+        `SELECT * FROM world_assets
+         WHERE project_id = ?
+           AND scene_cluster_id = ?
+         ORDER BY created_at ASC
+         LIMIT 1`
+      )
+      .get(projectId, sceneClusterId) as WorldAssetRow | undefined;
+
+    return row ? mapWorldAsset(row) : null;
+  }
+
   const row = db
     .prepare(
       `SELECT * FROM world_assets
        WHERE project_id = ?
-       ORDER BY updated_at DESC, created_at DESC
+       ORDER BY created_at ASC
        LIMIT 1`
     )
     .get(projectId) as WorldAssetRow | undefined;
@@ -288,18 +362,152 @@ function getLatestWorldAsset(
   return row ? mapWorldAsset(row) : null;
 }
 
+function getSceneCluster(
+  sceneClusterId: string,
+  db: DatabaseClient
+): SceneClusterRow | null {
+  const row = db
+    .prepare("SELECT * FROM scene_clusters WHERE id = ?")
+    .get(sceneClusterId) as SceneClusterRow | undefined;
+
+  return row ?? null;
+}
+
+function getExperienceSpaceSummaries(
+  projectId: string,
+  db: DatabaseClient,
+  activeSceneClusterId: string | null
+): ExperienceSpaceSummary[] {
+  const clusters = listSceneClusters(projectId, db);
+  const worldAssetsBySceneCluster = new Map(
+    listWorldAssets(projectId, db).map((asset) => [asset.sceneClusterId, asset])
+  );
+  const primarySceneClusterId =
+    listWorldAssets(projectId, db)[0]?.sceneClusterId ?? activeSceneClusterId;
+  const orderedClusters = [
+    ...clusters.filter((cluster) => cluster.id === activeSceneClusterId),
+    ...clusters.filter(
+      (cluster) =>
+        cluster.id !== activeSceneClusterId && cluster.id === primarySceneClusterId
+    ),
+    ...clusters.filter(
+      (cluster) =>
+        cluster.id !== activeSceneClusterId && cluster.id !== primarySceneClusterId
+    )
+  ].slice(0, 1 + MAX_MANIFEST_ALTERNATE_SPACES);
+
+  return orderedClusters.map((cluster) => {
+    const asset = worldAssetsBySceneCluster.get(cluster.id) ?? null;
+    const isReady = cluster.status === "ready" && Boolean(asset);
+
+    return {
+      sceneClusterId: cluster.id,
+      label: cluster.label,
+      status: getExperienceSpaceStatus(cluster.status, Boolean(asset)),
+      progress: getExperienceSpaceProgress(cluster, Boolean(asset)),
+      thumbnailUrl:
+        asset?.thumbnailUrl ??
+        asset?.panoUrl ??
+        parseJsonArray(cluster.seed_image_urls_json)[0] ??
+        null,
+      active: cluster.id === activeSceneClusterId,
+      canEnter: isReady
+    };
+  });
+}
+
+function listSceneClusters(
+  projectId: string,
+  db: DatabaseClient
+): SceneClusterRow[] {
+  return db
+    .prepare(
+      `SELECT *
+       FROM scene_clusters
+       WHERE project_id = ?
+       ORDER BY created_at ASC`
+    )
+    .all(projectId) as SceneClusterRow[];
+}
+
+function listWorldAssets(projectId: string, db: DatabaseClient): WorldAsset[] {
+  const rows = db
+    .prepare(
+      `SELECT *
+       FROM world_assets
+       WHERE project_id = ?
+       ORDER BY created_at ASC`
+    )
+    .all(projectId) as WorldAssetRow[];
+
+  return rows.map(mapWorldAsset);
+}
+
+function getExperienceSpaceStatus(
+  status: string,
+  hasAsset: boolean
+): ExperienceSpaceSummary["status"] {
+  if (status === "failed") {
+    return "failed";
+  }
+
+  if (status === "ready" && hasAsset) {
+    return "ready";
+  }
+
+  if (status === "generating_seed" || status === "waiting_for_world") {
+    return "generating";
+  }
+
+  return "pending";
+}
+
+function getExperienceSpaceProgress(
+  cluster: SceneClusterRow,
+  hasAsset: boolean
+): number {
+  if (cluster.status === "ready" && hasAsset) {
+    return 100;
+  }
+
+  if (cluster.status === "failed") {
+    return 100;
+  }
+
+  if (cluster.status === "waiting_for_world") {
+    return 72;
+  }
+
+  if (cluster.status === "generating_seed") {
+    const seedCount = parseJsonArray(cluster.seed_image_urls_json).length;
+    return Math.min(62, 24 + seedCount * 18);
+  }
+
+  if (cluster.status === "selected") {
+    return 16;
+  }
+
+  return 8;
+}
+
 function getProjectSelection(
   projectId: string,
   db: DatabaseClient
-): { id: Project["id"]; status: string; selectedPetId: string | null } | null {
+): {
+  id: Project["id"];
+  status: string;
+  displayName: string | null;
+  selectedPetId: string | null;
+} | null {
   const row = db
-    .prepare("SELECT id, status, selected_pet_id FROM projects WHERE id = ?")
+    .prepare("SELECT id, status, display_name, selected_pet_id FROM projects WHERE id = ?")
     .get(projectId) as ProjectSelectionRow | undefined;
 
   return row
     ? {
         id: row.id,
         status: row.status,
+        displayName: row.display_name,
         selectedPetId: row.selected_pet_id
       }
     : null;

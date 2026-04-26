@@ -1,19 +1,18 @@
 import { NextResponse } from "next/server";
-import { getExperienceAudioManifest } from "@/server/conversation/experience-manifest";
+import { getExperienceManifest } from "@/server/conversation/experience-manifest";
+import type { ExperienceManifest } from "@/server/conversation/types";
 import { getDatabase } from "@/server/db";
 import { ensureGenerationWorkerStarted } from "@/server/jobs/runtime";
 import {
-  ensureExperienceAudioBackfill,
-  type ExperienceAudioBackfillStatus
+  ensureBackgroundSpaceGeneration,
+  ensureExperienceAudioBackfill
 } from "@/server/projects/pipeline";
 import { getPublicProjectStatus } from "@/server/projects";
-import type { ExperienceAudioManifest } from "@/server/conversation/types";
 
 export const runtime = "nodejs";
 
-export interface ProjectAudioResponse {
-  audio: ExperienceAudioManifest;
-  audioStatus: ExperienceAudioBackfillStatus;
+export interface ProjectSpaceManifestResponse {
+  manifest: ExperienceManifest;
 }
 
 export async function GET(
@@ -37,14 +36,27 @@ export async function GET(
     );
   }
 
+  if (!sceneClusterId) {
+    return NextResponse.json(
+      { error: "A space id is required." },
+      { status: 400 }
+    );
+  }
+
   ensureGenerationWorkerStarted();
-  const audioStatus = ensureExperienceAudioBackfill(projectId, db, {
-    sceneClusterId
-  });
-  const audio = getExperienceAudioManifest(projectId, db, sceneClusterId);
+  const manifest = getExperienceManifest(projectId, db, { sceneClusterId });
+
+  if (manifest.world.sceneClusterId !== sceneClusterId || !manifest.world.asset) {
+    return NextResponse.json(
+      { error: "This memory space is still being prepared." },
+      { status: 409 }
+    );
+  }
+
+  ensureExperienceAudioBackfill(projectId, db, { sceneClusterId });
+  ensureBackgroundSpaceGeneration(projectId, db);
 
   return NextResponse.json({
-    audio,
-    audioStatus
-  } satisfies ProjectAudioResponse);
+    manifest
+  } satisfies ProjectSpaceManifestResponse);
 }

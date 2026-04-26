@@ -8,6 +8,7 @@ import type {
 
 interface ExperienceAudioProps {
   projectId: string;
+  sceneClusterId: string | null;
   audio: ExperienceAudioManifest;
   activeMotion: PlannedMotion | null;
 }
@@ -25,6 +26,7 @@ const AUDIO_POLL_INTERVAL_MS = 4_000;
 
 export function ExperienceAudio({
   projectId,
+  sceneClusterId,
   audio,
   activeMotion
 }: ExperienceAudioProps) {
@@ -59,7 +61,7 @@ export function ExperienceAudio({
     async function pollAudio() {
       try {
         const response = await fetch(
-          `/api/projects/${encodeURIComponent(projectId)}/audio`,
+          buildAudioUrl(projectId, sceneClusterId),
           {
             cache: "no-store"
           }
@@ -114,7 +116,7 @@ export function ExperienceAudio({
         window.clearTimeout(timeoutId);
       }
     };
-  }, [audioStatus, hasAudio, projectId]);
+  }, [audioStatus, hasAudio, projectId, sceneClusterId]);
 
   useEffect(() => {
     if (!currentAudio.backgroundMusicUrl) {
@@ -283,6 +285,19 @@ function hasPlayableAudio(audio: ExperienceAudioManifest): boolean {
     Boolean(audio.backgroundMusicUrl) ||
     Object.keys(audio.petSoundEffects).length > 0
   );
+}
+
+function buildAudioUrl(projectId: string, sceneClusterId: string | null): string {
+  const url = new URL(
+    `/api/projects/${encodeURIComponent(projectId)}/audio`,
+    window.location.origin
+  );
+
+  if (sceneClusterId) {
+    url.searchParams.set("sceneClusterId", sceneClusterId);
+  }
+
+  return url.pathname + url.search;
 }
 
 function SoundIcon() {

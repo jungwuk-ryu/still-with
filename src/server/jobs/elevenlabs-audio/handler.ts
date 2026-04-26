@@ -8,12 +8,20 @@ import {
   PET_SOUND_EFFECT_INTENTS,
   buildFallbackAudioPromptPlan,
   createAudioPromptPlanner,
+  getSceneAudioAssetKey,
+  getSceneAudioStorageKey,
   upsertAudioAssetRecord
 } from "@/server/audio";
-import { getSelectedSceneClusterForProject } from "@/server/assets/world-assets";
+import {
+  getSceneClusterRecord,
+  getSelectedSceneClusterForProject
+} from "@/server/assets/world-assets";
 import { getDatabase, getProjectRecord, type DatabaseClient } from "@/server/db";
 import { getPetProfileRecord } from "@/server/jobs/pet-analysis/pet-profile-repository";
-import { markProjectReadyIfAssetsComplete, updateProjectToStage } from "@/server/projects/pipeline";
+import {
+  markProjectReadyIfAssetsComplete,
+  updateProjectToStage
+} from "@/server/projects/pipeline";
 import { listUploadedImages } from "@/server/projects/repository";
 import { getLoadingStage } from "@/server/projects/stages";
 import {
@@ -38,36 +46,44 @@ interface PlannedAudioAsset {
   durationMs: number;
 }
 
+interface ElevenLabsAudioJobPayload {
+  sceneClusterId?: string;
+}
+
 export async function handleElevenLabsAudioJob(
   job: GenerationJob,
   deps: ElevenLabsAudioHandlerDeps = {}
 ): Promise<JsonValue> {
   const db = deps.db ?? getDatabase();
   const storage = deps.storage ?? createLocalStorageDriver();
+  const payload = parsePayload(job.payload);
   const provider =
     deps.provider === undefined
       ? getElevenLabsApiKey()
         ? createElevenLabsProvider()
         : null
       : deps.provider;
-  const context = getAudioGenerationContext(job.projectId, db);
+  const context = getAudioGenerationContext(job.projectId, db, payload.sceneClusterId);
   const promptPlan = provider
     ? await getAudioPromptPlan(context, { ...deps, storage })
     : buildFallbackAudioPromptPlan(context);
-  const stage = getLoadingStage(5);
+  const project = getProjectRecord(job.projectId, db);
 
-  updateProjectToStage(
-    job.projectId,
-    {
-      status: "preparing_pet",
-      currentStage: stage.title,
-      currentStepIndex: stage.index,
-      debugProgressPercent: 92
-    },
-    db
-  );
+  if (project?.status !== "ready") {
+    const stage = getLoadingStage(5);
+    updateProjectToStage(
+      job.projectId,
+      {
+        status: "preparing_pet",
+        currentStage: stage.title,
+        currentStepIndex: stage.index,
+        debugProgressPercent: 92
+      },
+      db
+    );
+  }
 
-  const plannedAssets = buildPlannedAudioAssets(promptPlan);
+  const plannedAssets = buildPlannedAudioAssets(promptPlan, payload.sceneClusterId);
 
   if (!provider) {
     for (const asset of plannedAssets) {
@@ -85,7 +101,7 @@ export async function handleElevenLabsAudioJob(
       );
     }
 
-    markProjectReadyIfAssetsComplete(job.projectId, db);
+    markProjectReadyIfNeeded(job.projectId, db);
 
     return {
       provider: "elevenlabs",
@@ -121,14 +137,20 @@ export async function handleElevenLabsAudioJob(
               prompt: asset.prompt,
               musicLengthMs: asset.durationMs,
               forceInstrumental: true,
-              context: { projectId: job.projectId }
+              context: {
+                projectId: job.projectId,
+                sceneClusterId: payload.sceneClusterId
+              }
             })
           : await provider.createSoundEffect({
               text: asset.prompt,
               durationSeconds: Math.max(0.5, asset.durationMs / 1_000),
               loop: false,
               promptInfluence: 0.45,
-              context: { projectId: job.projectId }
+              context: {
+                projectId: job.projectId,
+                sceneClusterId: payload.sceneClusterId
+              }
             });
       const stored = await storeGeneratedAudio({
         projectId: job.projectId,
@@ -194,7 +216,7 @@ export async function handleElevenLabsAudioJob(
     }
   }
 
-  markProjectReadyIfAssetsComplete(job.projectId, db);
+  markProjectReadyIfNeeded(job.projectId, db);
 
   return {
     provider: "elevenlabs",
@@ -208,7 +230,8 @@ export async function handleElevenLabsAudioJob(
 
 function getAudioGenerationContext(
   projectId: string,
-  db: DatabaseClient
+  db: DatabaseClient,
+  sceneClusterId?: string
 ): {
   projectId: string;
   petProfile: PetProfile;
@@ -228,7 +251,14 @@ function getAudioGenerationContext(
     throw new Error("ElevenLabs audio generation could not find the selected pet.");
   }
 
-  const sceneCluster = getSelectedSceneClusterForProject(projectId, db);
+  const sceneCluster = sceneClusterId
+    ? getSceneClusterRecord(sceneClusterId, db)
+    : getSelectedSceneClusterForProject(projectId, db);
+
+  if (sceneClusterId && sceneCluster?.projectId !== projectId) {
+    throw new Error("ElevenLabs audio generation could not find the requested space.");
+  }
+
   const uploadedImageUrls = listUploadedImages(projectId, db).map(
     (image) => image.originalUrl
   );
@@ -270,17 +300,20 @@ async function getAudioPromptPlan(
   }
 }
 
-function buildPlannedAudioAssets(input: AudioPromptPlan): PlannedAudioAsset[] {
+function buildPlannedAudioAssets(
+  input: AudioPromptPlan,
+  sceneClusterId?: string
+): PlannedAudioAsset[] {
   return [
     {
       kind: "background_music",
-      assetKey: BACKGROUND_MUSIC_ASSET_KEY,
+      assetKey: getSceneAudioAssetKey(sceneClusterId, BACKGROUND_MUSIC_ASSET_KEY),
       prompt: input.backgroundMusicPrompt,
       durationMs: BACKGROUND_MUSIC_DURATION_MS
     },
     ...PET_SOUND_EFFECT_INTENTS.map((intent) => ({
       kind: "pet_sound_effect" as const,
-      assetKey: intent,
+      assetKey: getSceneAudioAssetKey(sceneClusterId, intent),
       prompt: input.petSoundEffects[intent],
       durationMs: Math.round(PET_SOUND_EFFECT_DURATION_SECONDS * 1_000)
     }))
@@ -298,10 +331,35 @@ async function storeGeneratedAudio(input: {
   storage: StorageDriver;
 }) {
   return input.storage.putObject({
-    key: `projects/${input.projectId}/audio/${input.asset.assetKey}.mp3`,
+    key: `projects/${input.projectId}/audio/${getSceneAudioStorageKey(
+      input.asset.assetKey
+    )}.mp3`,
     body: input.generated.audio,
     contentType: input.generated.contentType
   });
+}
+
+function parsePayload(payload: JsonValue): ElevenLabsAudioJobPayload {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return {};
+  }
+
+  const record = payload as Record<string, JsonValue>;
+
+  return {
+    sceneClusterId:
+      typeof record.sceneClusterId === "string" ? record.sceneClusterId : undefined
+  };
+}
+
+function markProjectReadyIfNeeded(projectId: string, db: DatabaseClient): void {
+  const project = getProjectRecord(projectId, db);
+
+  if (project?.status === "ready") {
+    return;
+  }
+
+  markProjectReadyIfAssetsComplete(projectId, db);
 }
 
 function sanitizeProviderError(error: unknown): string {

@@ -26,6 +26,7 @@ export function buildSceneClassificationPrompt(images: UploadedImage[]): string 
 
   return [
     "Classify these uploaded pet-memory photos by physical place and choose one primary memory space for a 3D reconstruction MVP.",
+    "Also return up to two additional distinct places in clusters when the photos contain enough visual evidence for alternate memory spaces.",
     "Prefer the place with the strongest repeated visual evidence and enough room-scale cues.",
     "Choose a concise place label such as Living room, Bedroom, Hallway, Favorite corner, or Apartment playground.",
     "Select representativeImageIds that best show spatial layout, floor, wall, windows, furniture, and lighting.",

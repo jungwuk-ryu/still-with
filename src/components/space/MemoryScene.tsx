@@ -26,6 +26,7 @@ interface MemorySceneProps {
   activeMotion: PlannedMotion | null;
   petState: PetRuntimeState;
   onMotionComplete?: (sequenceId: string) => void;
+  onRoomReady?: () => void;
 }
 
 interface SceneRuntime {
@@ -37,7 +38,8 @@ export function MemoryScene({
   manifest,
   activeMotion,
   petState,
-  onMotionComplete
+  onMotionComplete,
+  onRoomReady
 }: MemorySceneProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -129,6 +131,7 @@ export function MemoryScene({
         setAssetStatus(status);
         setLoadProgress(null);
         setIsRoomReady(true);
+        onRoomReady?.();
       }
     };
     const frameStats = {
@@ -295,7 +298,7 @@ export function MemoryScene({
       cleanupObjects();
       renderer.dispose();
     };
-  }, [cameraControls, manifest]);
+  }, [cameraControls, manifest, onRoomReady]);
 
   return (
     <section

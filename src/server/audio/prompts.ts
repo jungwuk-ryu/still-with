@@ -2,6 +2,7 @@ import type { PetProfile } from "@/types";
 import type { MotionIntentKey } from "@/server/conversation/types";
 
 export const BACKGROUND_MUSIC_ASSET_KEY = "background";
+const SCENE_AUDIO_PREFIX = "space";
 
 export const PET_SOUND_EFFECT_INTENTS = [
   "look_at_me",
@@ -23,6 +24,19 @@ export const REQUIRED_EXPERIENCE_AUDIO_ASSETS = [
 
 export const BACKGROUND_MUSIC_DURATION_MS = 90_000;
 export const PET_SOUND_EFFECT_DURATION_SECONDS = 1.8;
+
+export function getSceneAudioAssetKey(
+  sceneClusterId: string | null | undefined,
+  assetKey: string
+): string {
+  return sceneClusterId
+    ? `${SCENE_AUDIO_PREFIX}:${sceneClusterId}:${assetKey}`
+    : assetKey;
+}
+
+export function getSceneAudioStorageKey(assetKey: string): string {
+  return assetKey.replace(/[^a-zA-Z0-9._-]+/g, "_");
+}
 
 export function buildBackgroundMusicPrompt(input: {
   sceneLabel: string | null;

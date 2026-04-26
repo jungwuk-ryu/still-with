@@ -15,6 +15,8 @@ export interface PetBillboardPlacement {
 }
 
 export interface ExperienceWorldManifest {
+  sceneClusterId: string | null;
+  label: string | null;
   asset: WorldAsset | null;
   tierHint: WorldAssetTier;
   spzUrl: string | null;
@@ -23,6 +25,22 @@ export interface ExperienceWorldManifest {
   groundPlaneOffset: number;
   initialCameraPose: CameraPose;
   source: "database" | "demo-stub";
+}
+
+export type ExperienceSpaceStatus =
+  | "pending"
+  | "generating"
+  | "ready"
+  | "failed";
+
+export interface ExperienceSpaceSummary {
+  sceneClusterId: string;
+  label: string;
+  status: ExperienceSpaceStatus;
+  progress: number;
+  thumbnailUrl: string | null;
+  active: boolean;
+  canEnter: boolean;
 }
 
 export interface ExperiencePetManifest {
@@ -42,7 +60,9 @@ export interface ExperienceAudioManifest {
 
 export interface ExperienceManifest {
   projectId: string;
+  displayName: string | null;
   world: ExperienceWorldManifest;
+  spaces: ExperienceSpaceSummary[];
   pet: ExperiencePetManifest;
   audio: ExperienceAudioManifest;
   chatAccessToken: string | null;
