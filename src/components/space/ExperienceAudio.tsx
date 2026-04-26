@@ -133,10 +133,7 @@ export function ExperienceAudio({
       void music
         .play()
         .then(() => setBlocked(false))
-        .catch(() => {
-          setEnabled(false);
-          setBlocked(true);
-        });
+        .catch(() => setBlocked(true));
     }
 
     return () => {
@@ -190,11 +187,35 @@ export function ExperienceAudio({
     void music
       .play()
       .then(() => setBlocked(false))
-      .catch(() => {
-        setEnabled(false);
-        setBlocked(true);
-      });
+      .catch(() => setBlocked(true));
   }, [enabled]);
+
+  useEffect(() => {
+    if (!enabled || !blocked) {
+      return;
+    }
+
+    function retryBlockedPlayback() {
+      const music = musicRef.current;
+
+      if (!music) {
+        return;
+      }
+
+      void music
+        .play()
+        .then(() => setBlocked(false))
+        .catch(() => setBlocked(true));
+    }
+
+    window.addEventListener("pointerdown", retryBlockedPlayback);
+    window.addEventListener("keydown", retryBlockedPlayback);
+
+    return () => {
+      window.removeEventListener("pointerdown", retryBlockedPlayback);
+      window.removeEventListener("keydown", retryBlockedPlayback);
+    };
+  }, [blocked, enabled]);
 
   useEffect(() => {
     if (!enabled || !activeMotion) {
@@ -214,10 +235,7 @@ export function ExperienceAudio({
     }
 
     effect.currentTime = 0;
-    void effect.play().catch(() => {
-      setEnabled(false);
-      setBlocked(true);
-    });
+    void effect.play().catch(() => setBlocked(true));
   }, [activeMotion, enabled]);
 
   if (!hasAudio) {
@@ -225,16 +243,32 @@ export function ExperienceAudio({
   }
 
   const isMuted = !enabled;
-  const label = isMuted ? "Play audio" : "Mute audio";
-  const playbackState = enabled ? "playing" : blocked ? "blocked" : "muted";
+  const label = isMuted || blocked ? "Play audio" : "Mute audio";
+  const playbackState = blocked ? "blocked" : enabled ? "playing" : "muted";
 
   return (
     <button
       type="button"
       className={`space-audio-toggle space-audio-toggle-${playbackState}`}
       aria-label={label}
-      aria-pressed={!isMuted}
+      aria-pressed={enabled && !blocked}
       onClick={() => {
+        if (blocked) {
+          const music = musicRef.current;
+
+          setEnabled(true);
+          setBlocked(false);
+
+          if (music) {
+            void music
+              .play()
+              .then(() => setBlocked(false))
+              .catch(() => setBlocked(true));
+          }
+
+          return;
+        }
+
         setBlocked(false);
         setEnabled((current) => !current);
       }}
