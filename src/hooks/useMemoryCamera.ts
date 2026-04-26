@@ -199,11 +199,11 @@ function getPetAwarePose(
 
   const petFocus: [number, number, number] = [
     focus.position[0],
-    focus.position[1] + focus.height * 0.62,
+    focus.position[1] + focus.height * 0.38,
     focus.position[2]
   ];
-  const targetBlend = 0.88;
-  const cameraBlend = 0.12;
+  const targetBlend = 1;
+  const cameraBlend = 0.08;
 
   return {
     position: blendVector(initialPose.position, petFocus, cameraBlend),

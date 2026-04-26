@@ -8,7 +8,7 @@ import {
   createIntakeProjectRecord,
   updateProjectLifecycle
 } from "./repository";
-import { enqueuePetAnalysisJob } from "./pipeline";
+import { enqueuePetAnalysisJob, enqueueSpacePreviewJob } from "./pipeline";
 import { getLoadingStage, TOTAL_LOADING_STEPS } from "./stages";
 
 export const MIN_RECOMMENDED_IMAGE_COUNT = 3;
@@ -104,6 +104,7 @@ export async function createProjectFromUploads(
     }
 
     const uploadedImages = addUploadedImages(project.id, storedImages, db);
+    enqueueSpacePreviewJob(project.id, db);
     enqueuePetAnalysisJob(project.id, db);
     const stage = getLoadingStage(0);
     const updatedProject =

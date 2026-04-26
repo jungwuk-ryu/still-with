@@ -360,9 +360,9 @@ function createChromaKeyMaterial(
     uniforms: {
       map: { value: texture },
       keyColor: { value: keyColor },
-      similarity: { value: chromaKeyColor === "blue" ? 0.32 : 0.34 },
-      smoothness: { value: 0.08 },
-      spill: { value: chromaKeyColor === "blue" ? 0.66 : 0.78 }
+      similarity: { value: chromaKeyColor === "blue" ? 0.28 : 0.3 },
+      smoothness: { value: 0.12 },
+      spill: { value: chromaKeyColor === "blue" ? 0.88 : 0.94 }
     },
     transparent: true,
     depthTest: false,
@@ -394,22 +394,33 @@ function createChromaKeyMaterial(
         float distanceToKey = distance(color.rgb, keyColor);
         float distanceAlpha = smoothstep(similarity, similarity + smoothness, distanceToKey);
         float screenAlpha = 1.0 - (
-          smoothstep(0.035, 0.16, channelDominance) *
-          smoothstep(0.08, 0.22, saturation)
+          smoothstep(0.018, 0.13, channelDominance) *
+          smoothstep(0.045, 0.19, saturation)
         );
-        float alpha = color.a * min(distanceAlpha, screenAlpha);
-        float spillAmount = smoothstep(0.02, 0.18, channelDominance) * spill;
+        float rawAlpha = color.a * min(distanceAlpha, screenAlpha);
+        float alpha = smoothstep(0.08, 0.34, rawAlpha);
+        float spillAmount = max(
+          smoothstep(0.008, 0.14, channelDominance),
+          1.0 - alpha
+        ) * spill;
         vec3 neutralized = color.rgb;
+        float edgeSoftness = 1.0 - smoothstep(0.34, 0.82, alpha);
 
         if (keyColor.g > keyColor.b) {
-          neutralized.g = min(neutralized.g, redBlueMax + 0.025);
+          neutralized.g = min(
+            neutralized.g,
+            mix(redBlueMax + 0.012, (color.r + color.b) * 0.5, edgeSoftness)
+          );
         } else {
-          neutralized.b = min(neutralized.b, redBlueMax + 0.025);
+          neutralized.b = min(
+            neutralized.b,
+            mix(redBlueMax + 0.012, (color.r + color.g) * 0.5, edgeSoftness)
+          );
         }
 
         color.rgb = mix(color.rgb, neutralized, spillAmount);
 
-        if (alpha < 0.025) {
+        if (alpha < 0.045) {
           discard;
         }
 

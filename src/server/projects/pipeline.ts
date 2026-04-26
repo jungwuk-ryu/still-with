@@ -1,6 +1,13 @@
 import { REQUIRED_MOTION_KEYS } from "@/pet/motion-set";
+import { SPACE_RECONSTRUCTION_PROMPT_VERSION } from "@/ai/scene";
+import {
+  getSelectedSceneClusterForProject,
+  listSceneClusterRecordsForProject,
+  listWorldAssetRecordsForProject
+} from "@/server/assets/world-assets";
 import {
   REQUIRED_EXPERIENCE_AUDIO_ASSETS,
+  getSceneAudioAssetKey,
   listAudioAssetRecords
 } from "@/server/audio";
 import { getElevenLabsApiKey } from "@/lib/env";
@@ -31,8 +38,20 @@ const IN_FLIGHT_JOB_STATUSES: GenerationJobStatus[] = [
   "retrying",
   "running"
 ];
+export const MAX_BACKGROUND_SPACE_COUNT = 2;
 
 export type ExperienceAudioBackfillStatus = "ready" | "queued" | "unavailable";
+
+export function enqueueSpacePreviewJob(
+  projectId: string,
+  db: DatabaseClient
+): void {
+  enqueueSceneClassificationJob(projectId, db, {
+    backgroundPreview: true,
+    priority: 24,
+    maxAttempts: 1
+  });
+}
 
 export function enqueuePetAnalysisJob(
   projectId: string,
@@ -77,15 +96,10 @@ export function enqueueMemoryGenerationJobs(
   const uploadedImages = listUploadedImages(projectId, db);
   const sourceImageUrls = uploadedImages.map((image) => image.originalUrl);
 
-  if (!hasProjectJob(projectId, "scene-classification", db)) {
-    createGenerationJob(
-      {
-        projectId,
-        type: "scene-classification",
-        priority: 10
-      },
-      db
-    );
+  if (!hasPreparedOrInFlightSpacePreview(projectId, db)) {
+    enqueueSceneClassificationJob(projectId, db, {
+      priority: 10
+    });
   }
 
   if (!hasProjectJob(projectId, "pet-keyframe", db)) {
@@ -103,6 +117,162 @@ export function enqueueMemoryGenerationJobs(
       db
     );
   }
+}
+
+function enqueueSceneClassificationJob(
+  projectId: string,
+  db: DatabaseClient,
+  options: {
+    backgroundPreview?: boolean;
+    backgroundSpaces?: boolean;
+    priority: number;
+    maxAttempts?: number;
+  }
+): void {
+  if (
+    hasProjectJob(projectId, "scene-classification", db, undefined, {
+      statuses: IN_FLIGHT_JOB_STATUSES
+    })
+  ) {
+    return;
+  }
+
+  createGenerationJob(
+    {
+      projectId,
+      type: "scene-classification",
+      payload: {
+        ...(options.backgroundPreview ? { backgroundPreview: true } : {}),
+        ...(options.backgroundSpaces ? { backgroundSpaces: true } : {})
+      },
+      priority: options.priority,
+      maxAttempts: options.maxAttempts
+    },
+    db
+  );
+}
+
+export function ensureBackgroundSpaceGeneration(
+  projectId: string,
+  db: DatabaseClient = getDatabase()
+): void {
+  const primarySceneClusterId = getPrimarySceneClusterId(projectId, db);
+
+  if (!primarySceneClusterId) {
+    return;
+  }
+
+  const clusters = listSceneClusterRecordsForProject(projectId, db);
+  const alternatives = clusters
+    .filter((cluster) => cluster.id !== primarySceneClusterId)
+    .slice(0, MAX_BACKGROUND_SPACE_COUNT);
+
+  if (
+    alternatives.length < MAX_BACKGROUND_SPACE_COUNT &&
+    !hasProjectJob(
+      projectId,
+      "scene-classification",
+      db,
+      { backgroundSpaces: true },
+      {
+        statuses: IN_FLIGHT_JOB_STATUSES
+      }
+    )
+  ) {
+    enqueueSceneClassificationJob(projectId, db, {
+      backgroundSpaces: true,
+      priority: 4,
+      maxAttempts: 1
+    });
+  }
+
+  for (const cluster of alternatives) {
+    if (
+      cluster.status === "ready" ||
+      cluster.status === "generating_seed" ||
+      cluster.status === "waiting_for_world"
+    ) {
+      continue;
+    }
+
+    if (
+      hasProjectJob(
+        projectId,
+        "space-seed",
+        db,
+        { sceneClusterId: cluster.id },
+        {
+          statuses: IN_FLIGHT_JOB_STATUSES
+        }
+      ) ||
+      hasProjectJob(
+        projectId,
+        "worldlabs-generation",
+        db,
+        {
+          sceneClusterId: cluster.id
+        },
+        {
+          statuses: IN_FLIGHT_JOB_STATUSES
+        }
+      )
+    ) {
+      continue;
+    }
+
+    createGenerationJob(
+      {
+        projectId,
+        type: "space-seed",
+        payload: {
+          sceneClusterId: cluster.id,
+          backgroundSpace: true
+        },
+        priority: 3,
+        maxAttempts: 1
+      },
+      db
+    );
+  }
+}
+
+function hasPreparedOrInFlightSpacePreview(
+  projectId: string,
+  db: DatabaseClient
+): boolean {
+  if (
+    hasProjectJob(projectId, "scene-classification", db, undefined, {
+      statuses: IN_FLIGHT_JOB_STATUSES
+    }) ||
+    hasProjectJob(projectId, "space-seed", db, undefined, {
+      statuses: IN_FLIGHT_JOB_STATUSES
+    }) ||
+    hasProjectJob(projectId, "worldlabs-generation", db, undefined, {
+      statuses: IN_FLIGHT_JOB_STATUSES
+    })
+  ) {
+    return true;
+  }
+
+  const sceneCluster = getSelectedSceneClusterForProject(projectId, db);
+
+  if (!sceneCluster) {
+    return false;
+  }
+
+  if (
+    sceneCluster.seedImageUrls.length > 0 &&
+    sceneCluster.seedPromptVersion === SPACE_RECONSTRUCTION_PROMPT_VERSION &&
+    sceneCluster.status !== "failed"
+  ) {
+    return true;
+  }
+
+  return (
+    sceneCluster.status === "generating_seed" ||
+    sceneCluster.status === "waiting_for_world" ||
+    sceneCluster.status === "ready"
+  );
 }
 
 export function enqueuePetVideoJob(
@@ -132,16 +302,8 @@ export function markProjectReadyIfAssetsComplete(
   projectId: string,
   db: DatabaseClient
 ): Project | null {
-  const hasRenderableWorld = Boolean(
-    db
-      .prepare(
-        `SELECT 1
-         FROM world_assets
-         WHERE project_id = ?
-         LIMIT 1`
-      )
-      .get(projectId)
-  );
+  const primarySceneClusterId = getPrimarySceneClusterId(projectId, db);
+  const hasRenderableWorld = Boolean(primarySceneClusterId);
   const project = db
     .prepare("SELECT selected_pet_id FROM projects WHERE id = ?")
     .get(projectId) as { selected_pet_id: string | null } | undefined;
@@ -166,8 +328,10 @@ export function markProjectReadyIfAssetsComplete(
     return null;
   }
 
-  if (!hasTerminalExperienceAudioAssets(projectId, db)) {
-    enqueueElevenLabsAudioJob(projectId, db);
+  if (!hasTerminalExperienceAudioAssets(projectId, db, primarySceneClusterId)) {
+    enqueueElevenLabsAudioJob(projectId, db, {
+      sceneClusterId: primarySceneClusterId
+    });
     return null;
   }
 
@@ -197,10 +361,14 @@ export function markProjectReadyIfAssetsComplete(
 export function enqueueElevenLabsAudioJob(
   projectId: string,
   db: DatabaseClient,
-  options: { statuses?: GenerationJobStatus[] } = {}
+  options: { statuses?: GenerationJobStatus[]; sceneClusterId?: string | null } = {}
 ): void {
+  const payloadSubset = options.sceneClusterId
+    ? { sceneClusterId: options.sceneClusterId }
+    : undefined;
+
   if (
-    hasProjectJob(projectId, "elevenlabs-audio", db, undefined, {
+    hasProjectJob(projectId, "elevenlabs-audio", db, payloadSubset, {
       statuses: options.statuses
     })
   ) {
@@ -211,6 +379,11 @@ export function enqueueElevenLabsAudioJob(
     {
       projectId,
       type: "elevenlabs-audio",
+      payload: options.sceneClusterId
+        ? {
+            sceneClusterId: options.sceneClusterId
+          }
+        : {},
       priority: 6,
       maxAttempts: 2
     },
@@ -220,9 +393,13 @@ export function enqueueElevenLabsAudioJob(
 
 export function ensureExperienceAudioBackfill(
   projectId: string,
-  db: DatabaseClient = getDatabase()
+  db: DatabaseClient = getDatabase(),
+  options: { sceneClusterId?: string | null } = {}
 ): ExperienceAudioBackfillStatus {
-  if (hasReadyExperienceAudioAssets(projectId, db)) {
+  const sceneClusterId = options.sceneClusterId ?? getPrimarySceneClusterId(projectId, db);
+  const payloadSubset = sceneClusterId ? { sceneClusterId } : undefined;
+
+  if (hasReadyExperienceAudioAssets(projectId, db, sceneClusterId)) {
     return "ready";
   }
 
@@ -230,21 +407,22 @@ export function ensureExperienceAudioBackfill(
     return "unavailable";
   }
 
-  if (hasProjectJob(projectId, "elevenlabs-audio", db, undefined, {
+  if (hasProjectJob(projectId, "elevenlabs-audio", db, payloadSubset, {
     statuses: IN_FLIGHT_JOB_STATUSES
   })) {
     return "queued";
   }
 
   if (
-    hasTerminalExperienceAudioAssets(projectId, db) &&
-    !hasMissingApiKeySkippedAudio(projectId, db)
+    hasTerminalExperienceAudioAssets(projectId, db, sceneClusterId) &&
+    !hasMissingApiKeySkippedAudio(projectId, db, sceneClusterId)
   ) {
     return "unavailable";
   }
 
   enqueueElevenLabsAudioJob(projectId, db, {
-    statuses: IN_FLIGHT_JOB_STATUSES
+    statuses: IN_FLIGHT_JOB_STATUSES,
+    sceneClusterId
   });
   return "queued";
 }
@@ -259,43 +437,72 @@ export function updateProjectToStage(
 
 export function hasReadyExperienceAudioAssets(
   projectId: string,
-  db: DatabaseClient
+  db: DatabaseClient,
+  sceneClusterId?: string | null
 ): boolean {
+  const requiredKeys = getRequiredAudioAssetKeys(sceneClusterId);
   const readyAssets = new Set(
     listAudioAssetRecords(projectId, db)
       .filter((asset) => asset.status === "ready" && asset.audioUrl)
       .map((asset) => `${asset.kind}:${asset.assetKey}`)
   );
 
-  return REQUIRED_EXPERIENCE_AUDIO_ASSETS.every((asset) =>
+  return requiredKeys.every((asset) =>
     readyAssets.has(`${asset.kind}:${asset.assetKey}`)
   );
 }
 
 function hasTerminalExperienceAudioAssets(
   projectId: string,
-  db: DatabaseClient
+  db: DatabaseClient,
+  sceneClusterId?: string | null
 ): boolean {
+  const requiredKeys = getRequiredAudioAssetKeys(sceneClusterId);
   const terminalAssets = new Set(
     listAudioAssetRecords(projectId, db)
       .filter((asset) => asset.status === "ready" || asset.status === "skipped")
       .map((asset) => `${asset.kind}:${asset.assetKey}`)
   );
 
-  return REQUIRED_EXPERIENCE_AUDIO_ASSETS.every((asset) =>
+  return requiredKeys.every((asset) =>
     terminalAssets.has(`${asset.kind}:${asset.assetKey}`)
   );
 }
 
 function hasMissingApiKeySkippedAudio(
   projectId: string,
-  db: DatabaseClient
+  db: DatabaseClient,
+  sceneClusterId?: string | null
 ): boolean {
+  const requiredKeys = new Set(
+    getRequiredAudioAssetKeys(sceneClusterId).map(
+      (asset) => `${asset.kind}:${asset.assetKey}`
+    )
+  );
+
   return listAudioAssetRecords(projectId, db).some(
     (asset) =>
       asset.status === "skipped" &&
+      requiredKeys.has(`${asset.kind}:${asset.assetKey}`) &&
       asset.providerErrorMessage?.includes("ELEVENLABS_API_KEY")
   );
+}
+
+function getRequiredAudioAssetKeys(sceneClusterId?: string | null): Array<{
+  kind: (typeof REQUIRED_EXPERIENCE_AUDIO_ASSETS)[number]["kind"];
+  assetKey: string;
+}> {
+  return REQUIRED_EXPERIENCE_AUDIO_ASSETS.map((asset) => ({
+    kind: asset.kind,
+    assetKey: getSceneAudioAssetKey(sceneClusterId, asset.assetKey)
+  }));
+}
+
+function getPrimarySceneClusterId(
+  projectId: string,
+  db: DatabaseClient
+): string | null {
+  return listWorldAssetRecordsForProject(projectId, db)[0]?.sceneClusterId ?? null;
 }
 
 function hasProjectJob(

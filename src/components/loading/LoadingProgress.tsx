@@ -66,6 +66,11 @@ interface LoadingProgressProps {
   stageTitles: string[];
 }
 
+const LOADING_AMBIENT_AUDIO_SRC =
+  "/audio/floating-dream-loop-2026-04-26.mp3";
+const LOADING_AMBIENT_VOLUME = 0.34;
+const AUDIO_FADE_DURATION_MS = 720;
+
 export function LoadingProgress({
   projectId,
   initialStatus,
@@ -80,12 +85,17 @@ export function LoadingProgress({
   const [emailFeedback, setEmailFeedback] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [isSubmittingEmail, setIsSubmittingEmail] = useState(false);
+  const [isAmbientSoundEnabled, setIsAmbientSoundEnabled] = useState(true);
+  const [ambientAudioNeedsGesture, setAmbientAudioNeedsGesture] = useState(false);
   const [hasEmailSubscription, setHasEmailSubscription] = useState(
     initialStatus?.hasCompletionEmailSubscription ?? false
   );
   const emailTriggerRef = useRef<HTMLButtonElement | null>(null);
   const emailDialogRef = useRef<HTMLElement | null>(null);
   const emailInputRef = useRef<HTMLInputElement | null>(null);
+  const ambientAudioRef = useRef<HTMLAudioElement | null>(null);
+  const ambientFadeRef = useRef<number | null>(null);
+  const ambientAudioInitializedRef = useRef(false);
 
   useEffect(() => {
     let isActive = true;
@@ -192,6 +202,107 @@ export function LoadingProgress({
       emailTrigger?.focus();
     };
   }, [isEmailDialogOpen]);
+
+  useEffect(() => {
+    const audio = ambientAudioRef.current;
+
+    if (!audio) {
+      return;
+    }
+
+    if (!ambientAudioInitializedRef.current) {
+      audio.volume = 0;
+      ambientAudioInitializedRef.current = true;
+    }
+
+    if (isAmbientSoundEnabled) {
+      void audio.play().then(() => {
+        setAmbientAudioNeedsGesture(false);
+        fadeAmbientAudioTo(LOADING_AMBIENT_VOLUME);
+      }).catch(() => {
+        setAmbientAudioNeedsGesture(true);
+      });
+    } else {
+      fadeAmbientAudioTo(0, () => {
+        audio.pause();
+      });
+    }
+  }, [isAmbientSoundEnabled]);
+
+  useEffect(() => {
+    if (!ambientAudioNeedsGesture || !isAmbientSoundEnabled) {
+      return;
+    }
+
+    function resumeAmbientAudio() {
+      const audio = ambientAudioRef.current;
+
+      if (!audio) {
+        return;
+      }
+
+      void audio.play().then(() => {
+        setAmbientAudioNeedsGesture(false);
+        fadeAmbientAudioTo(LOADING_AMBIENT_VOLUME);
+      }).catch(() => {
+        setAmbientAudioNeedsGesture(true);
+      });
+    }
+
+    window.addEventListener("pointerdown", resumeAmbientAudio, { once: true });
+    window.addEventListener("keydown", resumeAmbientAudio, { once: true });
+
+    return () => {
+      window.removeEventListener("pointerdown", resumeAmbientAudio);
+      window.removeEventListener("keydown", resumeAmbientAudio);
+    };
+  }, [ambientAudioNeedsGesture, isAmbientSoundEnabled]);
+
+  useEffect(
+    () => () => {
+      if (ambientFadeRef.current !== null) {
+        window.cancelAnimationFrame(ambientFadeRef.current);
+      }
+    },
+    []
+  );
+
+  function fadeAmbientAudioTo(targetVolume: number, onComplete?: () => void) {
+    const audio = ambientAudioRef.current;
+
+    if (!audio) {
+      onComplete?.();
+      return;
+    }
+
+    if (ambientFadeRef.current !== null) {
+      window.cancelAnimationFrame(ambientFadeRef.current);
+    }
+
+    const startVolume = audio.volume;
+    const startedAt = performance.now();
+
+    function step(now: number) {
+      const progress = Math.min(
+        (now - startedAt) / AUDIO_FADE_DURATION_MS,
+        1
+      );
+      const easedProgress = 1 - Math.pow(1 - progress, 3);
+      audio.volume =
+        startVolume + (targetVolume - startVolume) * easedProgress;
+
+      if (progress < 1) {
+        ambientFadeRef.current = window.requestAnimationFrame(step);
+        return;
+      }
+
+      ambientFadeRef.current = null;
+      audio.volume = targetVolume;
+      onComplete?.();
+    }
+
+    ambientFadeRef.current = window.requestAnimationFrame(step);
+  }
 
   const activeIndex = status?.stage.index ?? 0;
   const visibleStatus = useMemo(() => {
@@ -302,6 +413,13 @@ export function LoadingProgress({
 
   return (
     <>
+      <audio
+        ref={ambientAudioRef}
+        src={LOADING_AMBIENT_AUDIO_SRC}
+        preload="auto"
+        loop
+      />
+
       {previewBackgroundImages.length > 0 ? (
         <div className="space-preview-background" aria-hidden="true">
           {previewBackgroundImages.map((preview) => (
@@ -328,6 +446,39 @@ export function LoadingProgress({
           A familiar room is slowly taking shape, like stepping into a soft
           dream.
         </p>
+        <button
+          type="button"
+          className="loading-sound-toggle"
+          aria-pressed={isAmbientSoundEnabled}
+          onClick={() => {
+            if (isAmbientSoundEnabled && ambientAudioNeedsGesture) {
+              const audio = ambientAudioRef.current;
+
+              if (audio) {
+                void audio.play().then(() => {
+                  setAmbientAudioNeedsGesture(false);
+                  fadeAmbientAudioTo(LOADING_AMBIENT_VOLUME);
+                }).catch(() => {
+                  setAmbientAudioNeedsGesture(true);
+                });
+              }
+
+              return;
+            }
+
+            setAmbientAudioNeedsGesture(false);
+            setIsAmbientSoundEnabled((enabled) => !enabled);
+          }}
+        >
+          <span className="loading-sound-toggle-mark" aria-hidden="true" />
+          <span>
+            {isAmbientSoundEnabled
+              ? ambientAudioNeedsGesture
+                ? "Tap to start ambient sound"
+                : "Ambient sound on"
+              : "Ambient sound off"}
+          </span>
+        </button>
 
         <div className="current-stage" role="status" aria-live="polite" aria-atomic="true">
           <span>{visibleStatus.stage.title}</span>

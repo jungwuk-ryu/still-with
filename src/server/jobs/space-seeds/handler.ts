@@ -29,6 +29,8 @@ interface SpaceSeedPayload {
   sceneClusterId?: string;
   seedStrategy?: SceneSeedStrategy;
   directWorldInputImageIds?: string[];
+  backgroundPreview?: boolean;
+  backgroundSpace?: boolean;
 }
 
 export function createSpaceSeedHandler(
@@ -158,13 +160,16 @@ export function createSpaceSeedHandler(
                 sceneClusterId: sceneCluster.id,
                 inputMode: worldLabsInputModeForStrategy(plan.strategy),
                 textPrompt: plan.worldPrompt,
+                backgroundSpace: payload.backgroundSpace,
                 seedImages: generatedSeeds.map((seed) => ({
                   url: seed.url,
                   view: seed.view,
                   azimuth: seed.azimuth
                 }))
               },
-              priority: job.priority,
+              priority: payload.backgroundPreview || payload.backgroundSpace
+                ? Math.min(job.priority, 10)
+                : job.priority,
               maxAttempts: 1
             },
             options.db
@@ -193,18 +198,20 @@ export function createSpaceSeedHandler(
           },
           options.db
         );
-        updateProjectLifecycle(
-          job.projectId,
-          {
-            status: "failed",
-            currentStage: stage.title,
-            currentStepIndex: stage.index,
-            errorCode: "SPACE_SEED_FAILED",
-            errorMessage:
-              error instanceof Error ? error.message : "Space seed generation failed."
-          },
-          options.db
-        );
+        if (!payload.backgroundPreview && !payload.backgroundSpace) {
+          updateProjectLifecycle(
+            job.projectId,
+            {
+              status: "failed",
+              currentStage: stage.title,
+              currentStepIndex: stage.index,
+              errorCode: "SPACE_SEED_FAILED",
+              errorMessage:
+                error instanceof Error ? error.message : "Space seed generation failed."
+            },
+            options.db
+          );
+        }
       }
 
       throw error;
@@ -259,7 +266,9 @@ function parsePayload(payload: JsonValue): SpaceSeedPayload {
       ? record.directWorldInputImageIds.filter(
           (imageId): imageId is string => typeof imageId === "string"
         )
-      : undefined
+      : undefined,
+    backgroundPreview: record.backgroundPreview === true,
+    backgroundSpace: record.backgroundSpace === true
   };
 }
 

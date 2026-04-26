@@ -485,6 +485,43 @@ textarea {
   background: rgba(242, 202, 119, 0.72);
 }
 
+.loading-sound-toggle {
+  width: fit-content;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 9999px;
+  margin: -8px 0 18px;
+  padding: 0 12px 0 10px;
+  color: var(--color-text-soft);
+  background: rgba(255, 255, 255, 0.065);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
+  backdrop-filter: blur(14px);
+  cursor: pointer;
+}
+
+.loading-sound-toggle-mark {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  border-radius: 9999px;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.95) 0 18%, transparent 20%),
+    linear-gradient(135deg, rgba(249, 141, 190, 0.9), rgba(242, 202, 119, 0.82));
+  box-shadow: 0 0 18px rgba(249, 141, 190, 0.34);
+}
+
+.loading-sound-toggle[aria-pressed="true"] .loading-sound-toggle-mark {
+  animation: ambientSoundPulse 2.4s ease-in-out infinite;
+}
+
+.loading-sound-toggle[aria-pressed="false"] {
+  opacity: 0.72;
+}
+
 .completion-email-cta {
   display: grid;
   gap: 8px;
@@ -952,6 +989,11 @@ textarea {
     justify-content: center;
   }
 
+  .loading-sound-toggle {
+    width: 100%;
+    justify-content: center;
+  }
+
   .completion-email-dialog {
     padding: 24px;
   }
@@ -1034,9 +1076,23 @@ textarea {
   }
 }
 
+@keyframes ambientSoundPulse {
+  0%,
+  100% {
+    transform: scale(0.96);
+    opacity: 0.72;
+  }
+
+  50% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .quiet-waiting span,
-  .space-preview-background img {
+  .space-preview-background img,
+  .loading-sound-toggle-mark {
     animation: none;
   }
 
