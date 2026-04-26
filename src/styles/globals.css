@@ -935,10 +935,10 @@ textarea {
   position: relative;
   overflow: hidden;
   z-index: 1;
-  border-color: rgba(255, 255, 255, 0.82);
-  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(255, 255, 255, 0.56);
+  background: rgba(255, 255, 255, 0.54);
   box-shadow: var(--shadow-heaven-bloom);
-  backdrop-filter: blur(22px) saturate(1.18);
+  backdrop-filter: blur(24px) saturate(1.12);
   filter: var(--filter-heaven-bloom);
 }
 
@@ -1107,9 +1107,9 @@ textarea {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 50% 44%, rgba(255, 255, 255, 0.22), transparent 38%),
-    radial-gradient(circle at 20% 24%, rgba(255, 255, 255, 0.26), transparent 34%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(247, 248, 249, 0.2));
+    radial-gradient(circle at 50% 44%, rgba(255, 255, 255, 0.08), transparent 38%),
+    radial-gradient(circle at 20% 24%, rgba(255, 255, 255, 0.1), transparent 34%),
+    linear-gradient(180deg, rgba(19, 21, 23, 0.12), rgba(19, 21, 23, 0.34));
   backdrop-filter: blur(0.75px);
 }
 
@@ -1121,12 +1121,12 @@ textarea {
   height: 100%;
   object-fit: cover;
   opacity: 0;
-  filter: blur(8px) saturate(0.92) contrast(0.98);
+  filter: blur(8px) saturate(0.88) contrast(1.02) brightness(0.62);
   transform: scale(1.05);
 }
 
 .space-preview-background img:only-child {
-  opacity: 0.78;
+  opacity: 0.86;
   animation: spacePreviewBackgroundEnter 1.4s ease-out both;
 }
 
