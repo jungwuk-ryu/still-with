@@ -542,23 +542,81 @@ export function LoadingProgress({
         </div>
       ) : null}
 
-      <section
-        className="progress-panel"
-        aria-labelledby="loading-title"
+      <div
+        className="loading-progress-stack"
         aria-hidden={isEmailDialogOpen ? "true" : undefined}
       >
-        <p className="eyebrow">{visibleStatus.stage.label}</p>
-        <h1 id="loading-title">{dreamTitle}</h1>
-        <p className="panel-subtitle">{dreamSubtitle}</p>
+        <section className="progress-panel" aria-labelledby="loading-title">
+          <p className="eyebrow">{visibleStatus.stage.label}</p>
+          <h1 id="loading-title">{dreamTitle}</h1>
+          <p className="panel-subtitle">{dreamSubtitle}</p>
+
+          <div className="current-stage" role="status" aria-live="polite" aria-atomic="true">
+            <span>{visibleStatus.stage.title}</span>
+            <p>{visibleStatus.stage.description}</p>
+          </div>
+
+          <ol className="stage-list" aria-label="Preparation stages">
+            {stageTitles.map((stage, index) => (
+              <li
+                className={getStageClassName(index, activeIndex)}
+                key={`${stage}-${index}`}
+              >
+                <span>{stage}</span>
+              </li>
+            ))}
+          </ol>
+
+          {!visibleStatus.canEnter && !publicEntry ? (
+            <div className="completion-email-cta">
+              <button
+                ref={emailTriggerRef}
+                type="button"
+                className="completion-email-trigger"
+                onClick={() => {
+                  setEmailError(null);
+                  setEmailFeedback(
+                    hasEmailSubscription
+                      ? "Email reminder saved. You can update the address here."
+                      : null
+                  );
+                  setIsEmailDialogOpen(true);
+                }}
+              >
+                <span className="completion-email-orb" aria-hidden="true" />
+                <span>
+                  {hasEmailSubscription
+                    ? "Email reminder saved"
+                    : "Get an email when the space is ready"}
+                </span>
+              </button>
+              <p>
+                You can step away. We will send one quiet note when the door opens.
+              </p>
+            </div>
+          ) : null}
+
+          {visibleStatus.retry ? (
+            <p className="retry-note">{visibleStatus.retry.message}</p>
+          ) : null}
+          {refreshError ? <p className="form-warning">{refreshError}</p> : null}
+
+          {visibleStatus.canEnter && visibleStatus.nextRoute ? (
+            <Link className="button button-primary" href={visibleStatus.nextRoute}>
+              Enter the space
+            </Link>
+          ) : (
+            <div className="quiet-waiting" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </div>
+          )}
+        </section>
+
         <button
           type="button"
           className="loading-sound-toggle"
-          aria-label={
-            isAmbientSoundEnabled &&
-            ambientAudioPlaybackState === "playing"
-              ? "Pause loading room tone"
-              : "Play loading room tone"
-          }
           aria-pressed={
             isAmbientSoundEnabled &&
             ambientAudioPlaybackState === "playing"
@@ -575,76 +633,10 @@ export function LoadingProgress({
             setIsAmbientSoundEnabled((enabled) => !enabled);
           }}
         >
-          <span>
-            {getAmbientAudioLabel(
-              isAmbientSoundEnabled,
-              ambientAudioPlaybackState
-            )}
-          </span>
+          <span className="loading-sound-toggle-mark" aria-hidden="true" />
+          <span>Sound</span>
         </button>
-
-        <div className="current-stage" role="status" aria-live="polite" aria-atomic="true">
-          <span>{visibleStatus.stage.title}</span>
-          <p>{visibleStatus.stage.description}</p>
-        </div>
-
-        <ol className="stage-list" aria-label="Preparation stages">
-          {stageTitles.map((stage, index) => (
-            <li
-              className={getStageClassName(index, activeIndex)}
-              key={`${stage}-${index}`}
-            >
-              <span>{stage}</span>
-            </li>
-          ))}
-        </ol>
-
-        {!visibleStatus.canEnter && !publicEntry ? (
-          <div className="completion-email-cta">
-            <button
-              ref={emailTriggerRef}
-              type="button"
-              className="completion-email-trigger"
-              onClick={() => {
-                setEmailError(null);
-                setEmailFeedback(
-                  hasEmailSubscription
-                    ? "Email reminder saved. You can update the address here."
-                    : null
-                );
-                setIsEmailDialogOpen(true);
-              }}
-            >
-              <span className="completion-email-orb" aria-hidden="true" />
-              <span>
-                {hasEmailSubscription
-                  ? "Email reminder saved"
-                  : "Get an email when the space is ready"}
-              </span>
-            </button>
-            <p>
-              You can step away. We will send one quiet note when the door opens.
-            </p>
-          </div>
-        ) : null}
-
-        {visibleStatus.retry ? (
-          <p className="retry-note">{visibleStatus.retry.message}</p>
-        ) : null}
-        {refreshError ? <p className="form-warning">{refreshError}</p> : null}
-
-        {visibleStatus.canEnter && visibleStatus.nextRoute ? (
-          <Link className="button button-primary" href={visibleStatus.nextRoute}>
-            Enter the space
-          </Link>
-        ) : (
-          <div className="quiet-waiting" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </div>
-        )}
-      </section>
+      </div>
 
       {isEmailDialogOpen ? (
         <div
@@ -771,19 +763,4 @@ function getLoadingTitle(displayName: string | null, publicEntry: boolean): stri
 
 function getPossessiveName(displayName: string): string {
   return displayName.endsWith("s") ? `${displayName}'` : `${displayName}'s`;
-}
-
-function getAmbientAudioLabel(
-  isEnabled: boolean,
-  playbackState: AmbientAudioPlaybackState
-): string {
-  if (!isEnabled) {
-    return "Room tone resting";
-  }
-
-  if (playbackState === "playing") {
-    return "Room tone drifting";
-  }
-
-  return "Wake the room tone";
 }
