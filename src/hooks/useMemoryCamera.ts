@@ -33,6 +33,11 @@ const LIMITS = {
   depth: 0.7
 };
 
+const SAFE_VIEW_DIRECTION: [number, number] = normalizeHorizontal(0.18, 1);
+const SAFE_PET_CAMERA_DISTANCE = 2.35;
+const MIN_CAMERA_RADIUS = 1.9;
+const MAX_CAMERA_RADIUS = 3.1;
+
 const ZERO_STATE: CameraControlState = {
   yaw: 0,
   pitch: 0,
@@ -138,9 +143,10 @@ export function useMemoryCamera() {
         const petAwarePose = getPetAwarePose(initialPose, focus);
         const basePosition = petAwarePose.position;
         const baseTarget = petAwarePose.target;
-        const radius = Math.max(
-          1.2,
-          distance(basePosition, baseTarget) + state.current.depth
+        const radius = clamp(
+          distance(basePosition, baseTarget) + state.current.depth,
+          MIN_CAMERA_RADIUS,
+          MAX_CAMERA_RADIUS
         );
         const theta = Math.atan2(
           basePosition[0] - baseTarget[0],
@@ -202,24 +208,50 @@ function getPetAwarePose(
     focus.position[1] + focus.height * 0.38,
     focus.position[2]
   ];
-  const targetBlend = 1;
-  const cameraBlend = 0.08;
+  const direction = getSafePetCameraDirection(initialPose);
+  const heightOffset = clamp(focus.height * 0.32 + 0.48, 0.58, 0.82);
+  const cameraDistance = clamp(
+    distance(initialPose.position, initialPose.target),
+    SAFE_PET_CAMERA_DISTANCE,
+    MAX_CAMERA_RADIUS
+  );
 
   return {
-    position: blendVector(initialPose.position, petFocus, cameraBlend),
-    target: blendVector(initialPose.target, petFocus, targetBlend),
+    position: [
+      petFocus[0] + direction[0] * cameraDistance,
+      petFocus[1] + heightOffset,
+      petFocus[2] + direction[1] * cameraDistance
+    ],
+    target: petFocus,
     fov: initialPose.fov
   };
 }
 
-function blendVector(
-  from: [number, number, number],
-  to: [number, number, number],
-  amount: number
-): [number, number, number] {
-  return [
-    lerp(from[0], to[0], amount),
-    lerp(from[1], to[1], amount),
-    lerp(from[2], to[2], amount)
-  ];
+function getSafePetCameraDirection(initialPose: CameraPose): [number, number] {
+  const initialDirection = normalizeHorizontal(
+    initialPose.position[0] - initialPose.target[0],
+    initialPose.position[2] - initialPose.target[2]
+  );
+  const alignment =
+    initialDirection[0] * SAFE_VIEW_DIRECTION[0] +
+    initialDirection[1] * SAFE_VIEW_DIRECTION[1];
+
+  if (alignment < 0.35) {
+    return SAFE_VIEW_DIRECTION;
+  }
+
+  return normalizeHorizontal(
+    lerp(initialDirection[0], SAFE_VIEW_DIRECTION[0], 0.55),
+    lerp(initialDirection[1], SAFE_VIEW_DIRECTION[1], 0.55)
+  );
+}
+
+function normalizeHorizontal(x: number, z: number): [number, number] {
+  const length = Math.hypot(x, z);
+
+  if (length < 0.001) {
+    return [0, 1];
+  }
+
+  return [x / length, z / length];
 }
