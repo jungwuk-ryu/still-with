@@ -11,9 +11,26 @@ export interface PetBillboardOptions {
 
 export interface PetBillboard {
   group: THREE.Group;
-  setVideoUrl: (url: string | null, loop?: boolean) => void;
+  setVideoUrl: (
+    url: string | null,
+    loop?: boolean,
+    options?: PetBillboardPlaybackOptions
+  ) => void;
   update: (timeSeconds: number, motionKey: string | null, motionAge: number) => void;
   dispose: () => void;
+}
+
+export interface PetBillboardPlaybackOptions {
+  waitForLoopBoundary?: boolean;
+  durationMs?: number;
+  onEnded?: () => void;
+}
+
+interface PlaybackRequest {
+  url: string | null;
+  loop: boolean;
+  durationMs: number | null;
+  onEnded: (() => void) | null;
 }
 
 export function createPetBillboard(options: PetBillboardOptions): PetBillboard {
@@ -50,6 +67,9 @@ export function createPetBillboard(options: PetBillboardOptions): PetBillboard {
   let currentSourceIsVideo = false;
   let fallbackHasPoster = false;
   let loadVersion = 0;
+  let pendingPlayback: PlaybackRequest | null = null;
+  let activeEndedCallback: (() => void) | null = null;
+  let playbackEndTimer: number | null = null;
 
   function setTexture(texture: THREE.Texture) {
     material.uniforms.map.value = texture;
@@ -128,6 +148,7 @@ export function createPetBillboard(options: PetBillboardOptions): PetBillboard {
   }
 
   function resetVideoTexture() {
+    clearPlaybackEndTimer();
     video.pause();
     video.removeAttribute("src");
     video.load();
@@ -137,6 +158,43 @@ export function createPetBillboard(options: PetBillboardOptions): PetBillboard {
       videoTexture = null;
     }
   }
+
+  function clearPlaybackEndTimer() {
+    if (playbackEndTimer !== null) {
+      window.clearTimeout(playbackEndTimer);
+      playbackEndTimer = null;
+    }
+  }
+
+  function schedulePlaybackEndFallback(durationMs: number | null) {
+    clearPlaybackEndTimer();
+
+    if (durationMs === null || video.loop) {
+      return;
+    }
+
+    playbackEndTimer = window.setTimeout(() => {
+      playbackEndTimer = null;
+      completeCurrentPlayback();
+    }, Math.max(durationMs, 250) + 180);
+  }
+
+  function completeCurrentPlayback() {
+    clearPlaybackEndTimer();
+
+    if (pendingPlayback) {
+      const nextPlayback = pendingPlayback;
+      pendingPlayback = null;
+      startPlayback(nextPlayback);
+      return;
+    }
+
+    const onEnded = activeEndedCallback;
+    activeEndedCallback = null;
+    onEnded?.();
+  }
+
+  video.addEventListener("ended", completeCurrentPlayback);
 
   setTexture(fallbackTexture);
 
@@ -184,20 +242,53 @@ export function createPetBillboard(options: PetBillboardOptions): PetBillboard {
     fallbackTexture.needsUpdate = true;
   }
 
-  function setVideoUrl(url: string | null, loop = true) {
-    if (currentVideoUrl === url) {
+  function setVideoUrl(
+    url: string | null,
+    loop = true,
+    playbackOptions: PetBillboardPlaybackOptions = {}
+  ) {
+    const request: PlaybackRequest = {
+      url,
+      loop,
+      durationMs: playbackOptions.durationMs ?? null,
+      onEnded: playbackOptions.onEnded ?? null
+    };
+
+    if (
+      playbackOptions.waitForLoopBoundary &&
+      currentSourceIsVideo &&
+      currentVideoUrl !== url &&
+      !video.paused &&
+      !video.ended
+    ) {
+      pendingPlayback = request;
+      video.loop = false;
+      schedulePlaybackEndFallback(getRemainingVideoTimeMs(video));
+      return;
+    }
+
+    pendingPlayback = null;
+    startPlayback(request);
+  }
+
+  function startPlayback(request: PlaybackRequest) {
+    activeEndedCallback = request.onEnded;
+
+    if (currentVideoUrl === request.url) {
       if (currentSourceIsVideo) {
-        video.loop = loop;
+        video.loop = request.loop;
         video.currentTime = 0;
+        schedulePlaybackEndFallback(request.loop ? null : request.durationMs);
         void video.play().catch(() => {
           setTexture(fallbackTexture);
           loadPosterFallback(loadVersion);
+          schedulePlaybackEndFallback(request.loop ? null : request.durationMs);
         });
       }
       return;
     }
 
-    currentVideoUrl = url;
+    currentVideoUrl = request.url;
     currentSourceIsVideo = false;
     loadVersion += 1;
     const version = loadVersion;
@@ -205,25 +296,29 @@ export function createPetBillboard(options: PetBillboardOptions): PetBillboard {
     setTexture(fallbackTexture);
     loadPosterFallback(version);
 
-    if (!url) {
+    if (!request.url) {
+      schedulePlaybackEndFallback(request.loop ? null : request.durationMs);
       return;
     }
 
-    if (isFallbackManifestUrl(url)) {
-      void loadFallbackManifest(url, version);
+    if (isFallbackManifestUrl(request.url)) {
+      void loadFallbackManifest(request.url, version);
+      schedulePlaybackEndFallback(request.loop ? null : request.durationMs);
       return;
     }
 
     currentSourceIsVideo = true;
-    video.src = url;
-    video.loop = loop;
+    video.src = request.url;
+    video.loop = request.loop;
     videoTexture = new THREE.VideoTexture(video);
     videoTexture.colorSpace = THREE.SRGBColorSpace;
     setTexture(videoTexture);
+    schedulePlaybackEndFallback(request.loop ? null : request.durationMs);
     void video.play().catch(() => {
       currentSourceIsVideo = false;
       setTexture(fallbackTexture);
       loadPosterFallback(version);
+      schedulePlaybackEndFallback(request.loop ? null : request.durationMs);
     });
   }
 
@@ -232,27 +327,18 @@ export function createPetBillboard(options: PetBillboardOptions): PetBillboard {
   return {
     group,
     setVideoUrl,
-    update: (timeSeconds, motionKey, motionAge) => {
+    update: (timeSeconds, _motionKey, _motionAge) => {
       if (!currentVideoUrl && !fallbackHasPoster) {
         drawFallback(timeSeconds);
       }
 
-      const sitScale = motionKey === "sit" ? 0.86 : 1;
-      const closerOffset =
-        motionKey === "come_closer"
-          ? Math.min(Math.sin(Math.min(motionAge / 1.8, 1) * Math.PI * 0.5), 1) *
-            0.42
-          : 0;
-      const turn =
-        motionKey === "turn_around"
-          ? Math.sin(Math.min(motionAge / 1.3, 1) * Math.PI) * Math.PI
-          : Math.sin(timeSeconds * 0.55) * 0.05;
-
-      group.rotation.y = turn;
-      group.position.z = options.position[2] + closerOffset;
-      group.scale.setScalar(sitScale);
+      group.position.set(...options.position);
+      group.rotation.set(0, 0, 0);
+      group.scale.setScalar(1);
     },
     dispose: () => {
+      video.removeEventListener("ended", completeCurrentPlayback);
+      clearPlaybackEndTimer();
       resetVideoTexture();
       fallbackTexture.dispose();
       material.dispose();
@@ -335,6 +421,14 @@ function createChromaKeyMaterial(
 
 function isFallbackManifestUrl(url: string): boolean {
   return /\/pet\/fallback\/[^/?]+\.json(?:[?#].*)?$/.test(url);
+}
+
+function getRemainingVideoTimeMs(video: HTMLVideoElement): number | null {
+  if (!Number.isFinite(video.duration) || video.duration <= 0) {
+    return null;
+  }
+
+  return Math.max((video.duration - video.currentTime) * 1000, 0);
 }
 
 export function createContactShadow(

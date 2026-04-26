@@ -11,6 +11,11 @@ interface CameraControlState {
   depth: number;
 }
 
+interface MemoryCameraFocus {
+  position: [number, number, number];
+  height: number;
+}
+
 interface PointerState {
   active: boolean;
   pointerId: number | null;
@@ -106,6 +111,7 @@ export function useMemoryCamera() {
         camera: THREE.PerspectiveCamera,
         lookAtTarget: THREE.Vector3,
         initialPose: CameraPose,
+        focus: MemoryCameraFocus | null,
         deltaSeconds: number
       ) => {
         const state = pointerRef.current;
@@ -129,8 +135,9 @@ export function useMemoryCamera() {
           smoothing
         );
 
-        const basePosition = initialPose.position;
-        const baseTarget = initialPose.target;
+        const petAwarePose = getPetAwarePose(initialPose, focus);
+        const basePosition = petAwarePose.position;
+        const baseTarget = petAwarePose.target;
         const radius = Math.max(
           1.2,
           distance(basePosition, baseTarget) + state.current.depth
@@ -180,4 +187,39 @@ function lerp(current: number, target: number, amount: number): number {
 
 function distance(a: [number, number, number], b: [number, number, number]) {
   return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+}
+
+function getPetAwarePose(
+  initialPose: CameraPose,
+  focus: MemoryCameraFocus | null
+): CameraPose {
+  if (!focus) {
+    return initialPose;
+  }
+
+  const petFocus: [number, number, number] = [
+    focus.position[0],
+    focus.position[1] + focus.height * 0.62,
+    focus.position[2]
+  ];
+  const targetBlend = 0.88;
+  const cameraBlend = 0.12;
+
+  return {
+    position: blendVector(initialPose.position, petFocus, cameraBlend),
+    target: blendVector(initialPose.target, petFocus, targetBlend),
+    fov: initialPose.fov
+  };
+}
+
+function blendVector(
+  from: [number, number, number],
+  to: [number, number, number],
+  amount: number
+): [number, number, number] {
+  return [
+    lerp(from[0], to[0], amount),
+    lerp(from[1], to[1], amount),
+    lerp(from[2], to[2], amount)
+  ];
 }

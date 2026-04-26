@@ -39,7 +39,7 @@ export const PET_MOTION_DEFINITIONS: Record<
     durationMs: 4_000,
     loopable: true,
     description:
-      "The pet stands calmly with tiny natural breathing and weight shifts.",
+      "A seamless standing idle loop: the pet stays in place with natural breathing, tiny weight shifts, and matching first and final frames.",
     aliases: ["idle", "stay", "wait", "stand", "stand still", "calm"]
   },
   sit: {
@@ -50,7 +50,7 @@ export const PET_MOTION_DEFINITIONS: Record<
     durationMs: 4_000,
     loopable: true,
     description:
-      "The pet remains seated calmly with subtle breathing and a soft attentive posture.",
+      "A seamless seated idle loop: the pet remains seated with subtle breathing, a soft attentive posture, and matching first and final frames.",
     aliases: ["sit idle", "stay seated", "sitting", "remain sitting"]
   },
   sit_to_stand: {

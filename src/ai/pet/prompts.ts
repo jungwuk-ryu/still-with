@@ -96,7 +96,7 @@ export function buildSoraMotionPrompt(input: PetKeyframePromptInput): string {
     "Keep the camera locked off, full body visible, no cuts, no zooms, no scene change.",
     "Preserve coat colors, markings, face shape, ears, tail, size, and visible real collar/accessory.",
     definition.loopable
-      ? "Make the motion loop smoothly with subtle breathing and no jump at the loop point."
+      ? "Create a seamless cyclic idle video: first and final frames must match in pose, paws, head, tail, camera, scale, and lighting so looping has no visible pop, jump, or reset."
       : "End in a stable pose that can transition into stand_idle or sit idle without a visual jump."
   ].join("\n");
 }

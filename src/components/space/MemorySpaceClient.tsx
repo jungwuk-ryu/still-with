@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { PetRuntimeState } from "@/types";
 import type {
   ConversationTurnResult,
@@ -26,17 +26,11 @@ export function MemorySpaceClient({ manifest }: MemorySpaceClientProps) {
     setActiveMotion(turn.motion);
   }
 
-  useEffect(() => {
-    if (!activeMotion || activeMotion.loopable) {
-      return;
-    }
-
-    const timeout = window.setTimeout(() => {
-      setActiveMotion(null);
-    }, Math.max(activeMotion.durationMs, 250));
-
-    return () => window.clearTimeout(timeout);
-  }, [activeMotion]);
+  function handleMotionComplete(sequenceId: string) {
+    setActiveMotion((currentMotion) =>
+      currentMotion?.sequenceId === sequenceId ? null : currentMotion
+    );
+  }
 
   return (
     <main className="space-shell">
@@ -44,6 +38,7 @@ export function MemorySpaceClient({ manifest }: MemorySpaceClientProps) {
         manifest={manifest}
         activeMotion={activeMotion}
         petState={petState}
+        onMotionComplete={handleMotionComplete}
       />
       <ExperienceAudio audio={manifest.audio} activeMotion={activeMotion} />
       <FloatingChatBar

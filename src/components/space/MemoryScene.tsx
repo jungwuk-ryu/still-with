@@ -25,17 +25,19 @@ interface MemorySceneProps {
   manifest: ExperienceManifest;
   activeMotion: PlannedMotion | null;
   petState: PetRuntimeState;
+  onMotionComplete?: (sequenceId: string) => void;
 }
 
 interface SceneRuntime {
   billboard: PetBillboard;
-  setVideoUrl: (url: string | null, loop?: boolean) => void;
+  setVideoUrl: PetBillboard["setVideoUrl"];
 }
 
 export function MemoryScene({
   manifest,
   activeMotion,
-  petState
+  petState,
+  onMotionComplete
 }: MemorySceneProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -52,11 +54,29 @@ export function MemoryScene({
 
   useEffect(() => {
     motionRef.current = activeMotion;
-    runtimeRef.current?.setVideoUrl(
-      activeMotion?.videoUrl ?? manifest.pet.idleVideoUrl,
-      activeMotion?.loopable ?? true
+    const runtime = runtimeRef.current;
+
+    if (!runtime) {
+      return;
+    }
+
+    if (!activeMotion) {
+      runtime.setVideoUrl(getIdleVideoUrlForPose(manifest, petState.currentPose), true);
+      return;
+    }
+
+    runtime.setVideoUrl(
+      activeMotion.videoUrl ?? getIdleVideoUrlForPose(manifest, activeMotion.toState),
+      activeMotion.loopable,
+      {
+        durationMs: activeMotion.durationMs,
+        waitForLoopBoundary: true,
+        onEnded: activeMotion.loopable
+          ? undefined
+          : () => onMotionComplete?.(activeMotion.sequenceId)
+      }
     );
-  }, [activeMotion, manifest.pet.idleVideoUrl]);
+  }, [activeMotion, manifest, onMotionComplete, petState.currentPose]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -140,7 +160,7 @@ export function MemoryScene({
     });
     const billboard = createPetBillboard({
       ...manifest.pet.placement,
-      videoUrl: manifest.pet.idleVideoUrl,
+      videoUrl: getIdleVideoUrlForPose(manifest, petState.currentPose),
       chromaKeyColor: manifest.pet.chromaKeyColor,
       posterUrl: manifest.pet.posterUrl
     });
@@ -241,6 +261,7 @@ export function MemoryScene({
         camera,
         lookAtTarget,
         manifest.world.initialCameraPose,
+        manifest.pet.placement,
         delta
       );
       billboard.update(elapsed, active?.key ?? null, Math.max(motionAge, 0));
@@ -375,4 +396,25 @@ function loadPanoBackdrop(
 
     texture?.dispose();
   };
+}
+
+function getIdleVideoUrlForPose(
+  manifest: ExperienceManifest,
+  pose: string | null | undefined
+): string | null {
+  const motionKey = pose === "sit" ? "sit" : "stand_idle";
+  const idleClip =
+    manifest.pet.motionClips.find(
+      (clip) => clip.status === "ready" && clip.motionKey === motionKey
+    ) ??
+    manifest.pet.motionClips.find(
+      (clip) => clip.status === "ready" && clip.motionKey === "stand_idle"
+    );
+
+  return (
+    idleClip?.processedVideoUrl ??
+    idleClip?.alphaVideoUrl ??
+    idleClip?.rawVideoUrl ??
+    manifest.pet.idleVideoUrl
+  );
 }
