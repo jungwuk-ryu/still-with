@@ -1,14 +1,8 @@
+import { LoadingProgress } from "@/components/loading/LoadingProgress";
+import { getPublicProjectStatus, LOADING_STAGES } from "@/server/projects";
 import Link from "next/link";
 
-const stages = [
-  "Looking through your memories",
-  "Finding what feels familiar",
-  "Remembering the light",
-  "Making the space feel calm",
-  "Preparing a gentle presence",
-  "Checking the feeling",
-  "Ready when you are"
-];
+export const dynamic = "force-dynamic";
 
 export default async function LoadingPage({
   params
@@ -16,39 +10,37 @@ export default async function LoadingPage({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  const currentStepIndex = 2;
+  const initialStatus = getPublicProjectStatus(projectId);
+
+  if (!initialStatus) {
+    return (
+      <main className="app-shell app-shell-centered">
+        <section className="progress-panel" aria-labelledby="loading-title">
+          <div className="ambient-memory" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
+          <p className="eyebrow">Not found</p>
+          <h1 id="loading-title">This memory could not be found.</h1>
+          <p className="panel-subtitle">
+            Begin again with the photos you want to hold in focus.
+          </p>
+          <Link className="button button-primary" href="/">
+            Start again
+          </Link>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="app-shell app-shell-centered">
-      <section className="progress-panel" aria-labelledby="loading-title">
-        <div className="ambient-memory" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </div>
-
-        <p className="eyebrow">Step {currentStepIndex + 1} of 7</p>
-        <h1 id="loading-title">A quiet place is being prepared</h1>
-        <p className="panel-subtitle">
-          We&apos;re taking a little time to make this feel gentle, familiar, and
-          safe.
-        </p>
-
-        <ol className="stage-list" aria-label="Preparation stages">
-          {stages.map((stage, index) => (
-            <li
-              className={index === currentStepIndex ? "stage-active" : ""}
-              key={stage}
-            >
-              <span>{stage}</span>
-            </li>
-          ))}
-        </ol>
-
-        <Link className="button button-secondary" href={`/projects/${projectId}/space`}>
-          Enter when ready
-        </Link>
-      </section>
+      <LoadingProgress
+        projectId={projectId}
+        initialStatus={initialStatus}
+        stageTitles={LOADING_STAGES.map((stage) => stage.title)}
+      />
     </main>
   );
 }
