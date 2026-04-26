@@ -1,0 +1,68 @@
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, "Apple Color Emoji", Inter,
+    Roboto, "Segoe UI", "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --font-mono: "SF Mono", Menlo, Monaco, Consolas, "Courier New", Courier,
+    monospace;
+
+  --color-bg: #ffffff;
+  --color-surface: #f7f8f9;
+  --color-panel: #ffffff;
+  --color-hover: #ebeced;
+  --color-text: #131517;
+  --color-text-soft: rgba(19, 21, 23, 0.64);
+  --color-text-muted: rgba(19, 21, 23, 0.36);
+  --color-text-faint: rgba(19, 21, 23, 0.2);
+  --color-border: rgba(19, 21, 23, 0.08);
+  --color-border-faint: rgba(19, 21, 23, 0.05);
+  --color-border-strong: rgba(19, 21, 23, 0.16);
+  --color-border-solid: #d2d4d7;
+  --color-cranberry: #f31a7c;
+  --color-cranberry-active: #d5176d;
+  --color-cranberry-soft: rgba(243, 26, 124, 0.72);
+  --color-cranberry-pale: rgba(243, 26, 124, 0.133);
+  --color-violet: #682fff;
+  --color-sky: #287eff;
+  --color-gold: #d69712;
+  --color-warm: #f8712b;
+  --color-success: #3cbd2c;
+  --color-error: #ed2b32;
+  --color-glass: rgba(255, 255, 255, 0.8);
+
+  --gradient-rainbow: radial-gradient(
+    circle at 0 0,
+    #099ef1 0%,
+    #6863f8 18.82%,
+    #d84ffa 32.6%,
+    #f058c5 52.83%,
+    #ff4f90 68.03%,
+    #ff6558 87.66%,
+    #ff891f 100%
+  );
+  --gradient-brand: linear-gradient(
+    -45deg,
+    #8a18a8 0%,
+    #ce2756 51.59%,
+    #cf2a55 51.6%,
+    #e7a90d 100.05%
+  );
+  --gradient-footer: linear-gradient(45deg, #6e2fe3, #0cabf7, #e27417, #1f6f05);
+
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-panel: 24px;
+
+  --shadow-floating: 0 1px 2px rgba(19, 21, 23, 0.06),
+    0 8px 24px rgba(19, 21, 23, 0.08),
+    0 24px 70px rgba(104, 47, 255, 0.08);
+  --shadow-bloom: 0 0 22px rgba(243, 26, 124, 0.12),
+    0 0 54px rgba(40, 126, 255, 0.1),
+    0 18px 60px rgba(19, 21, 23, 0.1);
+  --shadow-heaven-bloom: 0 0 18px rgba(255, 255, 255, 0.92),
+    0 0 48px rgba(255, 255, 255, 0.66),
+    0 0 86px rgba(255, 255, 255, 0.42),
+    0 22px 74px rgba(40, 126, 255, 0.1);
+  --filter-bloom: drop-shadow(0 0 14px rgba(243, 26, 124, 0.22))
+    drop-shadow(0 0 32px rgba(40, 126, 255, 0.14));
+  --filter-heaven-bloom: drop-shadow(0 0 18px rgba(255, 255, 255, 0.84))
+    drop-shadow(0 0 42px rgba(255, 255, 255, 0.52));
+}

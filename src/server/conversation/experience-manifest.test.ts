@@ -1,0 +1,197 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import { createProjectRecord, openDatabase, type DatabaseClient } from "@/server/db";
+import { upsertAudioAssetRecord } from "@/server/audio";
+import { getOpenSpaceAccessTokenCount } from "@/server/realtime/space-access";
+import { getExperienceManifest } from "./experience-manifest";
+
+let db: DatabaseClient | null = null;
+let tmpDir: string | null = null;
+
+afterEach(async () => {
+  db?.close();
+  db = null;
+
+  if (tmpDir) {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+    tmpDir = null;
+  }
+});
+
+async function createTestDatabase(): Promise<DatabaseClient> {
+  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "still-with-experience-"));
+  return openDatabase(path.join(tmpDir, "test.sqlite"));
+}
+
+describe("experience manifest", () => {
+  it("uses the selected pet profile and scopes motion clips to that pet", async () => {
+    db = await createTestDatabase();
+    const project = createProjectRecord({}, db);
+    const now = new Date().toISOString();
+
+    insertPetProfile(db, project.id, "pet-a", 0.4, now);
+    insertPetProfile(db, project.id, "pet-b", 0.9, now);
+    db.prepare("UPDATE projects SET selected_pet_id = ? WHERE id = ?").run(
+      "pet-a",
+      project.id
+    );
+    insertMotionClip(db, project.id, "pet-a", "stand_idle", "/pet-a.mp4", now);
+    insertMotionClip(db, project.id, "pet-b", "stand_idle", "/pet-b.mp4", now);
+
+    const manifest = getExperienceManifest(project.id, db);
+
+    expect(manifest.pet.profile?.id).toBe("pet-a");
+    expect(manifest.pet.motionClips).toHaveLength(1);
+    expect(manifest.pet.motionClips[0]?.petProfileId).toBe("pet-a");
+    expect(manifest.pet.idleVideoUrl).toBe("/pet-a.mp4");
+    expect(manifest.world.initialCameraPose).toMatchObject({
+      position: [0, 1.22, 2.25],
+      target: [0, 0.86, -0.62]
+    });
+    expect(manifest.pet.placement).toMatchObject({
+      position: [0.08, 0.02, -0.98],
+      width: 1.36,
+      height: 1.78
+    });
+    expect(manifest.pet.chromaKeyColor).toBe("green");
+  });
+
+  it("issues chat and realtime tokens only for ready projects", async () => {
+    db = await createTestDatabase();
+    const project = createProjectRecord({}, db);
+
+    expect(getExperienceManifest(project.id, db).chatAccessToken).toBeNull();
+    expect(getOpenSpaceAccessTokenCount(db)).toBe(0);
+
+    db.prepare("UPDATE projects SET status = 'ready' WHERE id = ?").run(project.id);
+    const manifest = getExperienceManifest(project.id, db);
+
+    expect(manifest.chatAccessToken).toEqual(expect.any(String));
+    expect(manifest.realtimeAccessToken).toEqual(expect.any(String));
+    expect(getOpenSpaceAccessTokenCount(db)).toBe(2);
+  });
+
+  it("includes only ready ElevenLabs audio URLs in the client manifest", async () => {
+    db = await createTestDatabase();
+    const project = createProjectRecord({ status: "ready" }, db);
+
+    upsertAudioAssetRecord(
+      {
+        projectId: project.id,
+        kind: "background_music",
+        assetKey: "background",
+        prompt: "quiet music",
+        audioUrl: "/api/storage/projects/project/audio/background.mp3",
+        providerName: "elevenlabs",
+        providerStatus: "succeeded",
+        status: "ready"
+      },
+      db
+    );
+    upsertAudioAssetRecord(
+      {
+        projectId: project.id,
+        kind: "pet_sound_effect",
+        assetKey: "look_at_me",
+        prompt: "soft paws",
+        audioUrl: "/api/storage/projects/project/audio/look_at_me.mp3",
+        providerName: "elevenlabs",
+        providerStatus: "succeeded",
+        status: "ready"
+      },
+      db
+    );
+    upsertAudioAssetRecord(
+      {
+        projectId: project.id,
+        kind: "pet_sound_effect",
+        assetKey: "bark",
+        prompt: "soft dog bark",
+        audioUrl: "/api/storage/projects/project/audio/bark.mp3",
+        providerName: "elevenlabs",
+        providerStatus: "succeeded",
+        status: "ready"
+      },
+      db
+    );
+    upsertAudioAssetRecord(
+      {
+        projectId: project.id,
+        kind: "pet_sound_effect",
+        assetKey: "sit",
+        prompt: "missing key fallback",
+        audioUrl: null,
+        providerName: "elevenlabs",
+        providerStatus: "skipped",
+        status: "skipped"
+      },
+      db
+    );
+
+    const manifest = getExperienceManifest(project.id, db, {
+      issueAccessTokens: false
+    });
+
+    expect(manifest.audio).toEqual({
+      backgroundMusicUrl: "/api/storage/projects/project/audio/background.mp3",
+      petSoundEffects: {
+        bark: "/api/storage/projects/project/audio/bark.mp3",
+        look_at_me: "/api/storage/projects/project/audio/look_at_me.mp3"
+      }
+    });
+  });
+});
+
+function insertPetProfile(
+  db: DatabaseClient,
+  projectId: string,
+  petId: string,
+  confidence: number,
+  now: string
+) {
+  db.prepare(
+    `INSERT INTO pet_profiles (
+      id, project_id, source_candidate_ids_json, species, name,
+      trait_summary, distinctive_markings_json, face_description,
+      body_description, accessories_json, selection_confidence,
+      clarification_required, clarification_answer, created_at, updated_at
+    ) VALUES (
+      @petId, @projectId, '["candidate-1"]', 'cat', null,
+      'A remembered pet.', '[]', null,
+      null, '[]', @confidence,
+      0, 'private answer', @now, @now
+    )`
+  ).run({ petId, projectId, confidence, now });
+}
+
+function insertMotionClip(
+  db: DatabaseClient,
+  projectId: string,
+  petId: string,
+  motionKey: string,
+  videoUrl: string,
+  now: string
+) {
+  db.prepare(
+    `INSERT INTO motion_clips (
+      id, project_id, pet_profile_id, motion_key, from_state, to_state,
+      prompt, keyframe_image_urls_json, raw_video_url, processed_video_url,
+      alpha_video_url, duration_ms, loopable, quality_score, status,
+      created_at, updated_at
+    ) VALUES (
+      @id, @projectId, @petId, @motionKey, 'stand', 'stand',
+      'idle', '[]', null, @videoUrl,
+      null, 1200, 1, 0.9, 'ready',
+      @now, @now
+    )`
+  ).run({
+    id: `${petId}-${motionKey}`,
+    projectId,
+    petId,
+    motionKey,
+    videoUrl,
+    now
+  });
+}
