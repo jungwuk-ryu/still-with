@@ -165,7 +165,8 @@ export function LoadingProgress({
         <p className="eyebrow">A gentle pause</p>
         <h1 id="loading-title">This needs a little more time</h1>
         <p className="panel-subtitle">
-          The memory could not be prepared just yet. Your photos are still here.
+          The memory could not be prepared just yet. You can begin again when
+          you&apos;re ready.
         </p>
         <Link className="button button-secondary" href="/">
           Start again

@@ -5,6 +5,7 @@ import { checkRealtimeRateLimit } from "@/server/realtime/rate-limit";
 import { createRealtimeClientSecret } from "@/server/realtime/client-secret";
 import {
   consumeSpaceAccessToken,
+  createSpaceAccessToken,
   hasSpaceAccessToken
 } from "@/server/realtime/space-access";
 
@@ -29,10 +30,19 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!getProjectRecord(projectId)) {
+  const project = getProjectRecord(projectId);
+
+  if (!project) {
     return NextResponse.json(
       { error: "Voice is unavailable for this memory space." },
       { status: 404 }
+    );
+  }
+
+  if (project.status !== "ready") {
+    return NextResponse.json(
+      { error: "Voice can start once this memory space is ready." },
+      { status: 409 }
     );
   }
 
@@ -72,7 +82,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       clientSecret: secret.value,
       expiresAt: secret.expiresAt,
-      model: secret.model
+      model: secret.model,
+      nextRealtimeAccessToken: createSpaceAccessToken(projectId)
     });
   } catch (error) {
     if (error instanceof MissingEnvironmentVariableError) {

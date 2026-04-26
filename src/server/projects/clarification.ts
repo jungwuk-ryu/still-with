@@ -4,6 +4,7 @@ import {
   confirmPetProfileWithClarification,
   updateProjectLifecycle
 } from "./repository";
+import { enqueuePetAnalysisJob } from "./pipeline";
 import { getLoadingStage } from "./stages";
 
 const MAX_CLARIFICATION_LENGTH = 280;
@@ -60,15 +61,19 @@ export function submitProjectClarification(
     throw new ClarificationValidationError("Project not found.", 404);
   }
 
-  const stage = getLoadingStage(2);
+  enqueuePetAnalysisJob(projectId, db, {
+    clarificationAnswer: normalizedDetail
+  });
+
+  const stage = getLoadingStage(1);
   const updatedProject = updateProjectLifecycle(
     projectId,
     {
-      status: "preparing_space",
+      status: "analyzing",
       currentStage: stage.title,
       currentStepIndex: stage.index,
-      debugProgressPercent: 36,
-      selectedPetId: profile.id,
+      debugProgressPercent: 24,
+      selectedPetId: null,
       errorCode: null,
       errorMessage: null
     },

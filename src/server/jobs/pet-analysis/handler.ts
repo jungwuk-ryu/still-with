@@ -1,6 +1,16 @@
 import type { DatabaseClient } from "@/server/db";
 import { getDatabase } from "@/server/db";
 import { updateProjectSelectedPet } from "@/server/db";
+import {
+  createClarificationPetProfile,
+  getProjectPetProfile,
+  updateProjectLifecycle
+} from "@/server/projects/repository";
+import {
+  enqueueMemoryGenerationJobs,
+  updateProjectToStage
+} from "@/server/projects/pipeline";
+import { getLoadingStage, TOTAL_LOADING_STEPS } from "@/server/projects/stages";
 import { createOpenAIProvider, type OpenAIProvider } from "@/server/providers";
 import {
   createLocalStorageDriver,
@@ -41,16 +51,58 @@ export async function handlePetAnalysisJob(
     }
   });
 
-  if (result.petProfile) {
-    upsertPetProfileRecord(result.petProfile, db);
-    updateProjectSelectedPet(job.projectId, result.petProfile.id, db);
+  if (result.clarificationRequired || !result.petProfile) {
+    const existingProfile = getProjectPetProfile(job.projectId, db);
+    if (!existingProfile) {
+      createClarificationPetProfile(job.projectId, [], db);
+    }
+
+    const stage = getLoadingStage(1);
+    updateProjectLifecycle(
+      job.projectId,
+      {
+        status: "clarification_required",
+        currentStage: stage.title,
+        currentStepIndex: stage.index,
+        totalSteps: TOTAL_LOADING_STEPS,
+        debugProgressPercent: 20,
+        selectedPetId: null
+      },
+      db
+    );
+
+    return {
+      clarificationRequired: true,
+      clarificationPrompt: result.clarificationPrompt,
+      petProfileId: null,
+      selectionConfidence: null
+    };
   }
 
+  const petProfile = upsertPetProfileRecord(result.petProfile, db);
+  updateProjectSelectedPet(job.projectId, petProfile.id, db);
+  enqueueMemoryGenerationJobs(job.projectId, petProfile, db);
+  const stage = getLoadingStage(2);
+  updateProjectToStage(
+    job.projectId,
+    {
+      status: "preparing_space",
+      currentStage: stage.title,
+      currentStepIndex: stage.index,
+      totalSteps: TOTAL_LOADING_STEPS,
+      debugProgressPercent: 36,
+      selectedPetId: petProfile.id,
+      errorCode: null,
+      errorMessage: null
+    },
+    db
+  );
+
   return {
-    clarificationRequired: result.clarificationRequired,
+    clarificationRequired: false,
     clarificationPrompt: result.clarificationPrompt,
-    petProfileId: result.petProfile?.id ?? null,
-    selectionConfidence: result.petProfile?.selectionConfidence ?? null
+    petProfileId: petProfile.id,
+    selectionConfidence: petProfile.selectionConfidence
   };
 }
 

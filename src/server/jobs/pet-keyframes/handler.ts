@@ -1,5 +1,10 @@
 import type { DatabaseClient } from "@/server/db";
 import { getDatabase, getProjectRecord } from "@/server/db";
+import {
+  enqueuePetVideoJob,
+  updateProjectToStage
+} from "@/server/projects/pipeline";
+import { getLoadingStage } from "@/server/projects/stages";
 import { createOpenAIProvider, type OpenAIProvider } from "@/server/providers";
 import {
   createLocalStorageDriver,
@@ -38,6 +43,18 @@ export async function handlePetKeyframeJob(
   const provider = deps.openAIProvider ?? createOpenAIProvider();
   const payload = coercePayload(job.payload);
   const petProfile = resolveJobPetProfile(job.projectId, payload.petProfile, db);
+  const stage = getLoadingStage(4);
+  updateProjectToStage(
+    job.projectId,
+    {
+      status: "preparing_pet",
+      currentStage: stage.title,
+      currentStepIndex: stage.index,
+      debugProgressPercent: 68,
+      selectedPetId: petProfile.id
+    },
+    db
+  );
   const sourceImageUrls = await resolveProviderImageUrls(
     payload.sourceImageUrls ?? [],
     storage
@@ -85,6 +102,8 @@ export async function handlePetKeyframeJob(
       db
     );
   }
+
+  enqueuePetVideoJob(job.projectId, petProfile, db);
 
   return {
     petProfileId: petProfile.id,

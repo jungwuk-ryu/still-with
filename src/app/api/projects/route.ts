@@ -7,6 +7,7 @@ import {
   type ProjectUploadDescriptor,
   type ProjectUploadFile
 } from "@/server/projects";
+import { ensureGenerationWorkerStarted } from "@/server/jobs/runtime";
 
 export const runtime = "nodejs";
 
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
       }))
     );
     const result = await createProjectFromUploads(files);
+    ensureGenerationWorkerStarted();
     const status = getPublicProjectStatus(result.project.id);
 
     return NextResponse.json(

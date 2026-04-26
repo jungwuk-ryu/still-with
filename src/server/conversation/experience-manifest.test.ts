@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createProjectRecord, openDatabase, type DatabaseClient } from "@/server/db";
+import { getOpenSpaceAccessTokenCount } from "@/server/realtime/space-access";
 import { getExperienceManifest } from "./experience-manifest";
 
 let db: DatabaseClient | null = null;
@@ -35,8 +36,8 @@ describe("experience manifest", () => {
       "pet-a",
       project.id
     );
-    insertMotionClip(db, project.id, "pet-a", "idle", "/pet-a.mp4", now);
-    insertMotionClip(db, project.id, "pet-b", "idle", "/pet-b.mp4", now);
+    insertMotionClip(db, project.id, "pet-a", "stand_idle", "/pet-a.mp4", now);
+    insertMotionClip(db, project.id, "pet-b", "stand_idle", "/pet-b.mp4", now);
 
     const manifest = getExperienceManifest(project.id, db);
 
@@ -44,6 +45,21 @@ describe("experience manifest", () => {
     expect(manifest.pet.motionClips).toHaveLength(1);
     expect(manifest.pet.motionClips[0]?.petProfileId).toBe("pet-a");
     expect(manifest.pet.idleVideoUrl).toBe("/pet-a.mp4");
+  });
+
+  it("issues chat and realtime tokens only for ready projects", async () => {
+    db = await createTestDatabase();
+    const project = createProjectRecord({}, db);
+
+    expect(getExperienceManifest(project.id, db).chatAccessToken).toBeNull();
+    expect(getOpenSpaceAccessTokenCount(db)).toBe(0);
+
+    db.prepare("UPDATE projects SET status = 'ready' WHERE id = ?").run(project.id);
+    const manifest = getExperienceManifest(project.id, db);
+
+    expect(manifest.chatAccessToken).toEqual(expect.any(String));
+    expect(manifest.realtimeAccessToken).toEqual(expect.any(String));
+    expect(getOpenSpaceAccessTokenCount(db)).toBe(2);
   });
 });
 

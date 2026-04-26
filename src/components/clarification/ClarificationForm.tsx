@@ -7,6 +7,7 @@ interface ClarificationImage {
   id: string;
   originalUrl: string;
   thumbnailUrl: string | null;
+  uploadOrder: number;
 }
 
 interface ClarificationFormProps {
@@ -71,7 +72,10 @@ export function ClarificationForm({ projectId, images }: ClarificationFormProps)
           {images.map((image) => (
             <li key={image.id}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={image.thumbnailUrl ?? image.originalUrl} alt="" />
+              <img
+                src={image.thumbnailUrl ?? image.originalUrl}
+                alt={`Uploaded photo ${image.uploadOrder + 1}`}
+              />
             </li>
           ))}
         </ul>

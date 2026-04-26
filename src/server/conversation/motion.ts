@@ -1,4 +1,10 @@
 import type { MotionClip, PetRuntimeState } from "@/types";
+import {
+  PET_MOTION_DEFINITIONS,
+  normalizePetPose,
+  type PetMotionKey,
+  type PetPose
+} from "@/pet/motion-set";
 import type { MotionIntentKey, PlannedMotion } from "./types";
 
 const MOTION_PATTERNS: Array<[MotionIntentKey, RegExp]> = [
@@ -38,19 +44,24 @@ export function planMotionFromClips(
   clips: MotionClip[],
   runtimeState: PetRuntimeState
 ): PlannedMotion {
-  const exactClip = clips.find(
-    (clip) => clip.status === "ready" && clip.motionKey === intent
+  const motionKeys = getMotionKeysForIntent(
+    intent,
+    normalizePetPose(runtimeState.currentPose)
   );
-  const stateClip = clips.find(
-    (clip) =>
-      clip.status === "ready" &&
-      (clip.toState === intent || clip.toState === intent.replaceAll("_", "-"))
-  );
-  const idleClip = clips.find(
-    (clip) => clip.status === "ready" && clip.motionKey === "idle"
-  );
-  const selectedClip = exactClip ?? stateClip ?? idleClip ?? null;
-  const toState = selectedClip?.toState ?? motionIntentToPose(intent);
+  const selectedClip =
+    motionKeys
+      .map((motionKey) =>
+        clips.find(
+          (clip) => clip.status === "ready" && clip.motionKey === motionKey
+        )
+      )
+      .find(Boolean) ??
+    clips.find(
+      (clip) => clip.status === "ready" && clip.motionKey === "stand_idle"
+    ) ??
+    null;
+  const fallbackDefinition = PET_MOTION_DEFINITIONS[motionKeys[0] ?? "stand_idle"];
+  const toState = normalizePetPose(selectedClip?.toState ?? fallbackDefinition.toState);
 
   return {
     sequenceId: globalThis.crypto.randomUUID(),
@@ -61,10 +72,10 @@ export function planMotionFromClips(
       selectedClip?.alphaVideoUrl ??
       selectedClip?.rawVideoUrl ??
       null,
-    fromState: selectedClip?.fromState ?? runtimeState.currentPose,
+    fromState: normalizePetPose(selectedClip?.fromState ?? runtimeState.currentPose),
     toState,
-    durationMs: selectedClip?.durationMs ?? 2400,
-    loopable: selectedClip?.loopable ?? intent === "idle"
+    durationMs: selectedClip?.durationMs ?? fallbackDefinition.durationMs,
+    loopable: selectedClip?.loopable ?? fallbackDefinition.loopable
   };
 }
 
@@ -75,7 +86,7 @@ export function applyPlannedMotion(
 ): PetRuntimeState {
   return {
     projectId: runtimeState.projectId,
-    currentPose: motion.toState,
+    currentPose: normalizePetPose(motion.toState),
     targetPose: null,
     currentClipId: motion.clipId,
     queuedMotionKeys: [],
@@ -84,18 +95,21 @@ export function applyPlannedMotion(
   };
 }
 
-function motionIntentToPose(intent: MotionIntentKey): string {
+function getMotionKeysForIntent(
+  intent: MotionIntentKey,
+  currentPose: PetPose
+): PetMotionKey[] {
   switch (intent) {
     case "come_closer":
-      return "closer";
+      return ["walk_small", "stand_idle"];
     case "turn_around":
-      return "turn";
+      return ["turn_360", "stand_idle"];
     case "sit":
-      return "sit";
+      return currentPose === "sit" ? ["sit"] : ["stand_to_sit", "sit"];
     case "look_at_me":
-      return "attentive";
+      return ["look_at_camera", "stand_idle"];
     case "idle":
     default:
-      return "stand";
+      return ["stand_idle"];
   }
 }

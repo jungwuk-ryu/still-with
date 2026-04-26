@@ -4,6 +4,11 @@ import { createGenerationJob } from "@/server/jobs/repository";
 import type { GenerationJobHandler } from "@/server/jobs/worker";
 import type { DatabaseClient } from "@/server/db";
 import {
+  markProjectReadyIfAssetsComplete,
+  updateProjectToStage
+} from "@/server/projects/pipeline";
+import { getLoadingStage } from "@/server/projects/stages";
+import {
   getSceneClusterRecord,
   persistWorldAssetManifest,
   updateSceneClusterRecord
@@ -59,6 +64,17 @@ export function createWorldLabsGenerationHandler(
       (sceneCluster.status === "failed" ? null : sceneCluster.worldLabsOperationId);
 
     if (!operationId) {
+      const stage = getLoadingStage(3);
+      updateProjectToStage(
+        job.projectId,
+        {
+          status: "preparing_space",
+          currentStage: stage.title,
+          currentStepIndex: stage.index,
+          debugProgressPercent: 48
+        },
+        options.db
+      );
       let operation;
 
       try {
@@ -274,6 +290,7 @@ export function createWorldLabsGenerationHandler(
       },
       options.db
     );
+    markProjectReadyIfAssetsComplete(job.projectId, options.db);
 
     return {
       sceneClusterId: sceneCluster.id,

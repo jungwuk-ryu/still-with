@@ -25,5 +25,6 @@ export interface StorageDriver {
   putObject(input: PutObjectInput): Promise<StorageObjectInfo>;
   getObject(key: string): Promise<StoredObject>;
   deleteObject(key: string): Promise<void>;
+  deletePrefix?(prefix: string): Promise<void>;
   getObjectUrl(key: string): string;
 }

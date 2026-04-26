@@ -30,6 +30,7 @@ interface WorldAssetRow {
 
 interface ProjectSelectionRow {
   id: string;
+  status: string;
   selected_pet_id: string | null;
 }
 
@@ -64,6 +65,11 @@ interface MotionClipRow {
   duration_ms: number | null;
   loopable: number;
   quality_score: number | null;
+  provider_operation_id: string | null;
+  provider_name: string | null;
+  provider_status: string | null;
+  provider_error_message: string | null;
+  postprocess_json: string | null;
   status: MotionClipStatus;
 }
 
@@ -106,9 +112,13 @@ export function getExperienceManifest(
     lastUserIntent: null,
     lastUpdatedAt: new Date().toISOString()
   };
+  const canIssueAccessTokens =
+    Boolean(projectSelection) &&
+    projectSelection?.status === "ready" &&
+    issueAccessTokens;
 
   const idleClip = motionClips.find(
-    (clip) => clip.status === "ready" && clip.motionKey === "idle"
+    (clip) => clip.status === "ready" && clip.motionKey === "stand_idle"
   );
   const posterUrl =
     idleClip?.keyframeImageUrls[0] ??
@@ -144,11 +154,11 @@ export function getExperienceManifest(
         height: 1.38
       }
     },
-    chatAccessToken: projectSelection && issueAccessTokens
-      ? createSpaceAccessToken(projectId)
+    chatAccessToken: canIssueAccessTokens
+      ? createSpaceAccessToken(projectId, Date.now(), db)
       : null,
-    realtimeAccessToken: projectSelection && issueAccessTokens
-      ? createSpaceAccessToken(projectId)
+    realtimeAccessToken: canIssueAccessTokens
+      ? createSpaceAccessToken(projectId, Date.now(), db)
       : null,
     generatedAt: new Date().toISOString()
   };
@@ -213,14 +223,15 @@ function getLatestWorldAsset(
 function getProjectSelection(
   projectId: string,
   db: DatabaseClient
-): { id: Project["id"]; selectedPetId: string | null } | null {
+): { id: Project["id"]; status: string; selectedPetId: string | null } | null {
   const row = db
-    .prepare("SELECT id, selected_pet_id FROM projects WHERE id = ?")
+    .prepare("SELECT id, status, selected_pet_id FROM projects WHERE id = ?")
     .get(projectId) as ProjectSelectionRow | undefined;
 
   return row
     ? {
         id: row.id,
+        status: row.status,
         selectedPetId: row.selected_pet_id
       }
     : null;
@@ -351,6 +362,11 @@ function mapMotionClip(row: MotionClipRow): MotionClip {
     durationMs: row.duration_ms,
     loopable: row.loopable === 1,
     qualityScore: row.quality_score,
+    providerOperationId: row.provider_operation_id,
+    providerName: row.provider_name,
+    providerStatus: row.provider_status,
+    providerErrorMessage: row.provider_error_message,
+    postprocess: parsePostprocess(row.postprocess_json),
     status: row.status
   };
 }
@@ -363,5 +379,17 @@ function parseJsonArray(value: string): string[] {
       : [];
   } catch {
     return [];
+  }
+}
+
+function parsePostprocess(value: string | null): MotionClip["postprocess"] {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(value) as MotionClip["postprocess"];
+  } catch {
+    return null;
   }
 }

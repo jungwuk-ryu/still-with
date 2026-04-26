@@ -13,8 +13,9 @@ interface MicrophoneButtonProps {
 
 interface RealtimeSecretResponse {
   clientSecret?: string;
-  expiresAt?: number;
+  expiresAt?: string;
   model?: string;
+  nextRealtimeAccessToken?: string;
   error?: string;
 }
 
@@ -36,6 +37,7 @@ export function MicrophoneButton({
   const [state, setState] = useState<"idle" | "connecting" | "listening">(
     "idle"
   );
+  const [currentAccessToken, setCurrentAccessToken] = useState(accessToken);
   const connectionRef = useRef<{
     peerConnection: RTCPeerConnection;
     stream: MediaStream;
@@ -73,7 +75,7 @@ export function MicrophoneButton({
     pendingRef.current = pending;
 
     try {
-      if (!accessToken) {
+      if (!currentAccessToken) {
         throw new Error("Voice is unavailable for this memory space.");
       }
 
@@ -86,7 +88,7 @@ export function MicrophoneButton({
         signal: pending.abortController.signal,
         headers: {
           "Content-Type": "application/json",
-          "X-Still-With-Space-Token": accessToken
+          "X-Still-With-Space-Token": currentAccessToken
         },
         body: JSON.stringify({ projectId })
       });
@@ -96,6 +98,7 @@ export function MicrophoneButton({
       if (!tokenResponse.ok || !tokenData.clientSecret) {
         throw new Error(tokenData.error || "Voice is unavailable right now.");
       }
+      setCurrentAccessToken(tokenData.nextRealtimeAccessToken ?? null);
 
       const peerConnection = new RTCPeerConnection();
       pending.peerConnection = peerConnection;

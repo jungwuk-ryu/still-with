@@ -33,6 +33,7 @@ function parseStorageApiUrl(imageUrl: string): string | null {
 
   return imageUrl
     .slice("/api/storage/".length)
+    .split(/[?#]/, 1)[0]
     .split("/")
     .map(decodeURIComponent)
     .join("/");

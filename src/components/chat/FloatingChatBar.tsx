@@ -66,7 +66,7 @@ export function FloatingChatBar({
 
       setAssistantLine(result.assistantMessage);
       setCurrentChatAccessToken(result.nextChatAccessToken);
-      setStatus(`Motion: ${result.motion.key.replaceAll("_", " ")}`);
+      setStatus(result.motion.clipId ? "Moving gently." : "Staying close.");
       onConversationTurn(result);
     } catch (error) {
       setStatus(

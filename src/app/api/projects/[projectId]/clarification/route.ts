@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ensureGenerationWorkerStarted } from "@/server/jobs/runtime";
 import {
   ClarificationValidationError,
   getPublicProjectStatus,
@@ -19,6 +20,7 @@ export async function POST(
       typeof body.visualDetail === "string" ? body.visualDetail : "";
 
     submitProjectClarification(projectId, visualDetail);
+    ensureGenerationWorkerStarted();
 
     const status = getPublicProjectStatus(projectId);
 

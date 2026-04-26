@@ -224,7 +224,10 @@ export function UploadFlow() {
               <li className="preview-tile" key={photo.id}>
                 {photo.previewUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={photo.previewUrl} alt="" />
+                  <img
+                    src={photo.previewUrl}
+                    alt={`Selected photo ${photo.file.name}`}
+                  />
                 ) : (
                   <div className="preview-fallback">HEIC</div>
                 )}

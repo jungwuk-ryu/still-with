@@ -11,8 +11,10 @@ import {
 import { createLocalStorageDriver } from "@/server/storage";
 import {
   ClarificationValidationError,
+  createClarificationPetProfile,
   createProjectFromUploads,
   getProjectBundle,
+  getLoadingStage,
   getPublicProjectStatus,
   submitProjectClarification
 } from ".";
@@ -43,7 +45,7 @@ async function createTestContext() {
 }
 
 describe("intake project flow", () => {
-  it("stores uploaded images and opens the clarification step", async () => {
+  it("stores uploaded images and starts pet analysis before clarification", async () => {
     const context = await createTestContext();
 
     const result = await createProjectFromUploads(
@@ -57,25 +59,32 @@ describe("intake project flow", () => {
 
     const bundle = getProjectBundle(result.project.id, context.db);
 
-    expect(result.project.status).toBe("clarification_required");
+    expect(result.project.status).toBe("analyzing");
     expect(result.project.selectedPetId).toBeNull();
     expect(result.warning).toBeNull();
     expect(bundle?.uploadedImages).toHaveLength(3);
-    expect(bundle?.petProfile?.clarificationRequired).toBe(true);
-    expect(bundle?.project.currentStage).toBe("Finding what feels familiar");
+    expect(bundle?.petProfile).toBeNull();
+    expect(bundle?.project.currentStage).toBe("Looking through your memories");
+    const analysisJobCount = context.db
+      .prepare(
+        "SELECT COUNT(*) AS count FROM generation_jobs WHERE project_id = ? AND type = 'pet-analysis'"
+      )
+      .get(result.project.id) as { count: number };
+    expect(analysisJobCount.count).toBe(1);
 
     const publicStatus = getPublicProjectStatus(result.project.id, {
       db: context.db
     });
-    expect(publicStatus?.nextRoute).toBe(`/projects/${result.project.id}/clarify`);
+    expect(publicStatus?.nextRoute).toBeNull();
   });
 
-  it("confirms the pet profile and enters the space preparation lifecycle", async () => {
+  it("submits clarification and resumes analysis from the loading lifecycle", async () => {
     const context = await createTestContext();
     const result = await createProjectFromUploads(
       [createImageUpload("one.jpg")],
       context
     );
+    markProjectAsNeedingClarification(context.db, result.project.id);
 
     const clarified = submitProjectClarification(
       result.project.id,
@@ -83,9 +92,17 @@ describe("intake project flow", () => {
       context.db
     );
 
-    expect(clarified.status).toBe("preparing_space");
-    expect(clarified.currentStage).toBe("Remembering the light");
-    expect(clarified.selectedPetId).toBeTruthy();
+    expect(clarified.status).toBe("analyzing");
+    expect(clarified.currentStage).toBe("Finding what feels familiar");
+    expect(clarified.selectedPetId).toBeNull();
+    const clarificationJob = context.db
+      .prepare(
+        "SELECT payload_json FROM generation_jobs WHERE project_id = ? AND type = 'pet-analysis' ORDER BY created_at DESC LIMIT 1"
+      )
+      .get(result.project.id) as { payload_json: string };
+    expect(JSON.parse(clarificationJob.payload_json)).toMatchObject({
+      clarificationAnswer: "the small white dog with brown ears"
+    });
   });
 
   it("rejects duplicate or stale clarification without rewinding the project", async () => {
@@ -94,6 +111,7 @@ describe("intake project flow", () => {
       [createImageUpload("one.jpg")],
       context
     );
+    markProjectAsNeedingClarification(context.db, result.project.id);
     const clarified = submitProjectClarification(
       result.project.id,
       "the small white dog with brown ears",
@@ -109,7 +127,7 @@ describe("intake project flow", () => {
     ).toThrow(ClarificationValidationError);
 
     const bundle = getProjectBundle(result.project.id, context.db);
-    expect(bundle?.project.status).toBe("preparing_space");
+    expect(bundle?.project.status).toBe("analyzing");
     expect(bundle?.project.selectedPetId).toBe(clarified.selectedPetId);
   });
 
@@ -119,6 +137,7 @@ describe("intake project flow", () => {
       [createImageUpload("one.jpg")],
       context
     );
+    markProjectAsNeedingClarification(context.db, result.project.id);
     submitProjectClarification(
       result.project.id,
       "the small white dog with brown ears",
@@ -133,7 +152,7 @@ describe("intake project flow", () => {
     }
 
     const bundle = getProjectBundle(result.project.id, context.db);
-    expect(bundle?.project.status).toBe("preparing_space");
+    expect(bundle?.project.status).toBe("analyzing");
     expect(getPublicProjectStatus(result.project.id, { db: context.db })?.canEnter).toBe(
       false
     );
@@ -149,6 +168,7 @@ describe("intake project flow", () => {
       ],
       context
     );
+    markProjectAsNeedingClarification(context.db, result.project.id);
 
     submitProjectClarification(result.project.id, "the cat with the blue collar", context.db);
 
@@ -226,6 +246,22 @@ function createImageUpload(fileName: string, contentType = "image/jpeg") {
   };
 }
 
+function markProjectAsNeedingClarification(
+  db: DatabaseClient,
+  projectId: string
+): void {
+  createClarificationPetProfile(projectId, [], db);
+  const stage = getLoadingStage(1);
+  db.prepare(
+    `UPDATE projects
+     SET status = 'clarification_required',
+         current_stage = ?,
+         current_step_index = ?,
+         updated_at = ?
+     WHERE id = ?`
+  ).run(stage.title, stage.index, new Date().toISOString(), projectId);
+}
+
 async function countStoredFiles(directory: string): Promise<number> {
   try {
     const entries = await fs.readdir(directory, { withFileTypes: true });
@@ -237,7 +273,9 @@ async function countStoredFiles(directory: string): Promise<number> {
           return countStoredFiles(entryPath);
         }
 
-        return Promise.resolve(entry.isFile() ? 1 : 0);
+        return Promise.resolve(
+          entry.isFile() && entry.name !== ".storage-url-secret" ? 1 : 0
+        );
       })
     );
 

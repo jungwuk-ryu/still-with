@@ -2,6 +2,11 @@ import type { DatabaseClient } from "@/server/db";
 import { getDatabase, getProjectRecord } from "@/server/db";
 import { getGeminiApiKey } from "@/lib/env";
 import {
+  markProjectReadyIfAssetsComplete,
+  updateProjectToStage
+} from "@/server/projects/pipeline";
+import { getLoadingStage } from "@/server/projects/stages";
+import {
   createSoraProvider,
   createVeoProvider,
   type MotionVideoProvider,
@@ -59,6 +64,18 @@ export async function handlePetVideoJob(
     deps.soraProvider === undefined ? createSoraProvider() : deps.soraProvider;
   const payload = coercePayload(job.payload);
   const petProfile = resolveJobPetProfile(job.projectId, payload.petProfile, db);
+  const stage = getLoadingStage(4);
+  updateProjectToStage(
+    job.projectId,
+    {
+      status: "preparing_pet",
+      currentStage: stage.title,
+      currentStepIndex: stage.index,
+      debugProgressPercent: 78,
+      selectedPetId: petProfile.id
+    },
+    db
+  );
   const motionKeys = normalizeMotionKeys(payload.motionKeys);
   const generatedClips: MotionClip[] = [];
   const failures: Array<{
@@ -117,6 +134,8 @@ export async function handlePetVideoJob(
     }
     generatedClips.push(result.clip);
   }
+
+  markProjectReadyIfAssetsComplete(job.projectId, db);
 
   return {
     clips: generatedClips.map((clip) => ({

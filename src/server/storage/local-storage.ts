@@ -49,6 +49,11 @@ export class LocalStorageDriver implements StorageDriver {
     await fs.rm(absolutePath, { force: true });
   }
 
+  async deletePrefix(prefix: string): Promise<void> {
+    const absolutePath = this.resolveKey(prefix);
+    await fs.rm(absolutePath, { recursive: true, force: true });
+  }
+
   getObjectUrl(key: string): string {
     const encodedKey = key.split("/").map(encodeURIComponent).join("/");
     return `/api/storage/${encodedKey}?token=${signStorageKey(key, this.rootDir)}`;

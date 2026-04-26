@@ -5,10 +5,10 @@ import { getDatabase, type DatabaseClient } from "@/server/db";
 import { createLocalStorageDriver, type StorageDriver } from "@/server/storage";
 import {
   addUploadedImages,
-  createClarificationPetProfile,
   createIntakeProjectRecord,
   updateProjectLifecycle
 } from "./repository";
+import { enqueuePetAnalysisJob } from "./pipeline";
 import { getLoadingStage, TOTAL_LOADING_STEPS } from "./stages";
 
 export const MIN_RECOMMENDED_IMAGE_COUNT = 3;
@@ -104,21 +104,17 @@ export async function createProjectFromUploads(
     }
 
     const uploadedImages = addUploadedImages(project.id, storedImages, db);
-    createClarificationPetProfile(
-      project.id,
-      uploadedImages.map((image) => image.id),
-      db
-    );
-    const stage = getLoadingStage(1);
+    enqueuePetAnalysisJob(project.id, db);
+    const stage = getLoadingStage(0);
     const updatedProject =
       updateProjectLifecycle(
         project.id,
         {
-          status: "clarification_required",
+          status: "analyzing",
           currentStage: stage.title,
           currentStepIndex: stage.index,
           totalSteps: TOTAL_LOADING_STEPS,
-          debugProgressPercent: 20,
+          debugProgressPercent: 12,
           selectedPetId: null
         },
         db
@@ -252,6 +248,9 @@ async function cleanupFailedProjectUpload({
   db: DatabaseClient;
 }): Promise<void> {
   await Promise.allSettled(storedKeys.map((key) => storage.deleteObject(key)));
+  if (project && "deletePrefix" in storage && typeof storage.deletePrefix === "function") {
+    await storage.deletePrefix(`projects/${project.id}`);
+  }
 
   if (project) {
     try {

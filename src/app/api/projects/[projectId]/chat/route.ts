@@ -33,10 +33,19 @@ export async function POST(
     );
   }
 
-  if (!getProjectRecord(projectId)) {
+  const project = getProjectRecord(projectId);
+
+  if (!project) {
     return NextResponse.json(
       { error: "Messages are unavailable for this memory space." },
       { status: 404 }
+    );
+  }
+
+  if (project.status !== "ready") {
+    return NextResponse.json(
+      { error: "Messages can start once this memory space is ready." },
+      { status: 409 }
     );
   }
 

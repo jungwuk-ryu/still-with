@@ -11,6 +11,7 @@ tsconfig.tsbuildinfo
 .env
 .env.*
 !.env.example
+.storage-url-secret
 
 data/*.sqlite
 data/*.sqlite-*
