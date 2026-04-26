@@ -1,6 +1,5 @@
 import Link from "next/link";
-
-const acceptedFormats = ".jpg, .jpeg, .png, .webp, .heic";
+import { UploadFlow } from "@/components/upload/UploadFlow";
 
 export default function UploadPage() {
   return (
@@ -9,9 +8,7 @@ export default function UploadPage() {
         <Link className="brand-mark" href="/">
           Still With
         </Link>
-        <Link className="nav-pill" href="/projects/demo/loading">
-          Preview
-        </Link>
+        <span className="nav-pill">Private by design</span>
       </nav>
 
       <section className="upload-grid" aria-labelledby="upload-title">
@@ -23,31 +20,7 @@ export default function UploadPage() {
           </p>
         </div>
 
-        <form className="upload-panel">
-          <label className="drop-zone" htmlFor="photo-upload">
-            <span className="drop-zone-title">Choose photos</span>
-            <span className="drop-zone-copy">
-              More photos help us recognize your pet and rebuild the space more
-              faithfully.
-            </span>
-            <input
-              id="photo-upload"
-              name="photos"
-              type="file"
-              accept={acceptedFormats}
-              multiple
-            />
-          </label>
-
-          <div className="upload-actions">
-            <p className="privacy-line">
-              Your photos stay private while this memory is prepared.
-            </p>
-            <button className="button button-primary" type="button">
-              Begin
-            </button>
-          </div>
-        </form>
+        <UploadFlow />
       </section>
     </main>
   );
