@@ -9,6 +9,11 @@ import {
   updateProjectLifecycle
 } from "./repository";
 import { enqueuePetAnalysisJob, enqueueSpacePreviewJob } from "./pipeline";
+import {
+  NO_PET_UPLOAD_MESSAGE,
+  PET_PRESENCE_CHECK_UNAVAILABLE_MESSAGE,
+  type PetPresenceDetector
+} from "./pet-presence";
 import { getLoadingStage, TOTAL_LOADING_STEPS } from "./stages";
 
 export const MIN_RECOMMENDED_IMAGE_COUNT = 3;
@@ -65,11 +70,14 @@ export async function createProjectFromUploads(
   options: {
     db?: DatabaseClient;
     storage?: StorageDriver;
+    petPresenceDetector?: PetPresenceDetector | null;
     settings?: ProjectCreationSettings;
   } = {}
 ): Promise<CreateProjectFromUploadsResult> {
   validateProjectUploads(files);
   const settings = normalizeProjectCreationSettings(options.settings);
+
+  await assertUploadsContainPet(files, options.petPresenceDetector);
 
   const db = options.db ?? getDatabase();
   const storage = options.storage ?? createLocalStorageDriver();
@@ -151,6 +159,35 @@ export async function createProjectFromUploads(
 
 export function validateProjectUploads(files: ProjectUploadFile[]): void {
   validateProjectUploadDescriptors(files);
+}
+
+async function assertUploadsContainPet(
+  files: ProjectUploadFile[],
+  detector: PetPresenceDetector | null | undefined
+): Promise<void> {
+  if (!detector) {
+    return;
+  }
+
+  let result;
+
+  try {
+    result = await detector.detectPetPresence({
+      images: files.map((file) => ({
+        fileName: file.fileName,
+        mimeType: resolveImageMimeType(file.fileName, file.contentType) ?? file.contentType,
+        body: file.body
+      }))
+    });
+  } catch {
+    throw new ProjectUploadValidationError(
+      PET_PRESENCE_CHECK_UNAVAILABLE_MESSAGE
+    );
+  }
+
+  if (!result.hasPet) {
+    throw new ProjectUploadValidationError(NO_PET_UPLOAD_MESSAGE);
+  }
 }
 
 export function validateProjectDisplayName(displayName: string): string {

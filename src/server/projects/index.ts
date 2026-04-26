@@ -2,6 +2,7 @@ export * from "./clarification";
 export * from "./email-notifications";
 export * from "./intake";
 export * from "./pipeline";
+export * from "./pet-presence";
 export * from "./public-dreams";
 export * from "./repository";
 export * from "./stages";

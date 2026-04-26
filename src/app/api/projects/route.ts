@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import {
+  createGeminiPetPresenceDetector,
   createProjectFromUploads,
   getPublicProjectStatus,
+  PET_PRESENCE_CHECK_UNAVAILABLE_MESSAGE,
   ProjectUploadValidationError,
   validateProjectDisplayName,
   validateProjectUploadDescriptors,
@@ -38,7 +40,16 @@ export async function POST(request: Request) {
         body: Buffer.from(await photo.arrayBuffer())
       }))
     );
+    const petPresenceDetector = createGeminiPetPresenceDetector();
+
+    if (!petPresenceDetector) {
+      throw new ProjectUploadValidationError(
+        PET_PRESENCE_CHECK_UNAVAILABLE_MESSAGE
+      );
+    }
+
     const result = await createProjectFromUploads(files, {
+      petPresenceDetector,
       settings: {
         displayName,
         isPublic
