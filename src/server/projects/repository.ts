@@ -97,11 +97,19 @@ export interface GenerationJobSummary {
   errorMessage: string | null;
 }
 
+export interface CreateIntakeProjectInput {
+  displayName?: string | null;
+  isPublic?: boolean;
+}
+
 export function createIntakeProjectRecord(
+  input: CreateIntakeProjectInput = {},
   db: DatabaseClient = getDatabase()
 ): Project {
   return createProjectRecord(
     {
+      displayName: input.displayName ?? null,
+      isPublic: input.isPublic ?? false,
       status: "uploading",
       currentStage: getLoadingStage(0).title,
       totalSteps: TOTAL_LOADING_STEPS

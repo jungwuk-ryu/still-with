@@ -1,6 +1,8 @@
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS projects (
   id TEXT PRIMARY KEY,
+  display_name TEXT,
+  is_public INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL,
   current_stage TEXT,
   current_step_index INTEGER NOT NULL DEFAULT 0,

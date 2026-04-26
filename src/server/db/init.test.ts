@@ -45,6 +45,10 @@ describe("initializeDatabase", () => {
     expect(projectColumns.map((column) => column.name)).toContain(
       "selected_pet_id"
     );
+    expect(projectColumns.map((column) => column.name)).toContain(
+      "display_name"
+    );
+    expect(projectColumns.map((column) => column.name)).toContain("is_public");
     expect(motionClipColumns.map((column) => column.name)).toContain(
       "postprocess_json"
     );

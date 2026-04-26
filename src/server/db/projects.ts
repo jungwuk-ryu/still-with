@@ -4,6 +4,8 @@ import { getDatabase, type DatabaseClient } from "./connection";
 
 interface ProjectRow {
   id: string;
+  display_name: string | null;
+  is_public: number;
   status: ProjectStatus;
   current_stage: string | null;
   current_step_index: number;
@@ -20,6 +22,8 @@ interface ProjectRow {
 
 export interface CreateProjectInput {
   id?: string;
+  displayName?: string | null;
+  isPublic?: boolean;
   status?: ProjectStatus;
   currentStage?: string | null;
   totalSteps?: number;
@@ -32,6 +36,8 @@ export function createProjectRecord(
   const now = new Date().toISOString();
   const project: Project = {
     id: input.id ?? randomUUID(),
+    displayName: input.displayName ?? null,
+    isPublic: input.isPublic ?? false,
     status: input.status ?? "draft",
     currentStage: input.currentStage ?? null,
     currentStepIndex: 0,
@@ -48,15 +54,18 @@ export function createProjectRecord(
 
   db.prepare(
     `INSERT INTO projects (
-      id, status, current_stage, current_step_index, total_steps,
+      id, display_name, is_public, status, current_stage, current_step_index, total_steps,
       debug_progress_percent, selected_pet_id, error_code, error_message,
       retry_count, created_at, updated_at, completed_at
     ) VALUES (
-      @id, @status, @currentStage, @currentStepIndex, @totalSteps,
+      @id, @displayName, @isPublic, @status, @currentStage, @currentStepIndex, @totalSteps,
       @debugProgressPercent, @selectedPetId, @errorCode, @errorMessage,
       @retryCount, @createdAt, @updatedAt, @completedAt
     )`
-  ).run(project);
+  ).run({
+    ...project,
+    isPublic: project.isPublic ? 1 : 0
+  });
 
   return project;
 }
@@ -107,6 +116,8 @@ export function updateProjectSelectedPet(
 function mapProjectRow(row: ProjectRow): Project {
   return {
     id: row.id,
+    displayName: row.display_name,
+    isPublic: row.is_public === 1,
     status: row.status,
     currentStage: row.current_stage,
     currentStepIndex: row.current_step_index,

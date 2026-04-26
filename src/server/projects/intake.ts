@@ -14,6 +14,7 @@ import { getLoadingStage, TOTAL_LOADING_STEPS } from "./stages";
 export const MIN_RECOMMENDED_IMAGE_COUNT = 3;
 export const MAX_PROJECT_IMAGE_COUNT = 12;
 export const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
+export const MAX_PROJECT_DISPLAY_NAME_LENGTH = 80;
 
 export const ACCEPTED_IMAGE_MIME_TYPES = [
   "image/jpeg",
@@ -44,6 +45,11 @@ export interface CreateProjectFromUploadsResult {
   warning: string | null;
 }
 
+export interface ProjectCreationSettings {
+  displayName?: string | null;
+  isPublic?: boolean;
+}
+
 export class ProjectUploadValidationError extends Error {
   constructor(
     message: string,
@@ -59,9 +65,11 @@ export async function createProjectFromUploads(
   options: {
     db?: DatabaseClient;
     storage?: StorageDriver;
+    settings?: ProjectCreationSettings;
   } = {}
 ): Promise<CreateProjectFromUploadsResult> {
   validateProjectUploads(files);
+  const settings = normalizeProjectCreationSettings(options.settings);
 
   const db = options.db ?? getDatabase();
   const storage = options.storage ?? createLocalStorageDriver();
@@ -69,7 +77,13 @@ export async function createProjectFromUploads(
   const storedKeys: string[] = [];
 
   try {
-    project = createIntakeProjectRecord(db);
+    project = createIntakeProjectRecord(
+      {
+        displayName: settings.displayName,
+        isPublic: settings.isPublic
+      },
+      db
+    );
     const storedImages = [];
 
     for (const [index, file] of files.entries()) {
@@ -137,6 +151,22 @@ export async function createProjectFromUploads(
 
 export function validateProjectUploads(files: ProjectUploadFile[]): void {
   validateProjectUploadDescriptors(files);
+}
+
+export function validateProjectDisplayName(displayName: string): string {
+  const normalizedName = displayName.trim().replace(/\s+/g, " ");
+
+  if (normalizedName.length === 0) {
+    throw new ProjectUploadValidationError("Add your pet's name to begin.");
+  }
+
+  if (normalizedName.length > MAX_PROJECT_DISPLAY_NAME_LENGTH) {
+    throw new ProjectUploadValidationError(
+      `Keep the name under ${MAX_PROJECT_DISPLAY_NAME_LENGTH} characters.`
+    );
+  }
+
+  return normalizedName;
 }
 
 export function validateProjectUploadDescriptors(
@@ -235,6 +265,29 @@ function isAcceptedImageExtension(extension: string): boolean {
   return [".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"].includes(
     extension
   );
+}
+
+function normalizeProjectCreationSettings(
+  settings: ProjectCreationSettings | undefined
+): Required<ProjectCreationSettings> {
+  const displayName =
+    typeof settings?.displayName === "string" && settings.displayName.trim()
+      ? settings.displayName.trim().replace(/\s+/g, " ")
+      : null;
+
+  if (
+    displayName &&
+    displayName.length > MAX_PROJECT_DISPLAY_NAME_LENGTH
+  ) {
+    throw new ProjectUploadValidationError(
+      `Keep the name under ${MAX_PROJECT_DISPLAY_NAME_LENGTH} characters.`
+    );
+  }
+
+  return {
+    displayName,
+    isPublic: settings?.isPublic === true
+  };
 }
 
 async function cleanupFailedProjectUpload({

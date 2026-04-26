@@ -49,6 +49,8 @@ export interface PublicSpacePreviewImage {
 
 export interface PublicProjectStatus {
   projectId: string;
+  displayName: string | null;
+  isPublic: boolean;
   status: ProjectStatus;
   stage: PublicLoadingStage;
   retry: GentleRetryState | null;
@@ -90,6 +92,8 @@ export function getPublicProjectStatus(
 
   return {
     projectId: bundle.project.id,
+    displayName: bundle.project.displayName,
+    isPublic: bundle.project.isPublic,
     status: bundle.project.status,
     stage: {
       index: stage.index,

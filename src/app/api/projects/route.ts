@@ -3,6 +3,7 @@ import {
   createProjectFromUploads,
   getPublicProjectStatus,
   ProjectUploadValidationError,
+  validateProjectDisplayName,
   validateProjectUploadDescriptors,
   type ProjectUploadDescriptor,
   type ProjectUploadFile
@@ -14,6 +15,10 @@ export const runtime = "nodejs";
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
+    const displayName = validateProjectDisplayName(
+      String(formData.get("petName") ?? "")
+    );
+    const isPublic = formData.get("isPublic") === "on";
     const photos = formData
       .getAll("photos")
       .filter((value): value is File => value instanceof File);
@@ -33,7 +38,12 @@ export async function POST(request: Request) {
         body: Buffer.from(await photo.arrayBuffer())
       }))
     );
-    const result = await createProjectFromUploads(files);
+    const result = await createProjectFromUploads(files, {
+      settings: {
+        displayName,
+        isPublic
+      }
+    });
     ensureGenerationWorkerStarted();
     const status = getPublicProjectStatus(result.project.id);
 

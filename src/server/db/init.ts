@@ -7,10 +7,15 @@ export function initializeDatabase(db: Database.Database): void {
   ensureProjectColumns(db);
   ensureSceneClusterColumns(db);
   ensureMotionClipColumns(db);
+  ensureIndexes(db);
 }
 
 function ensureProjectColumns(db: Database.Database): void {
-  ensureColumns(db, "projects", [["selected_pet_id", "TEXT"]]);
+  ensureColumns(db, "projects", [
+    ["display_name", "TEXT"],
+    ["is_public", "INTEGER NOT NULL DEFAULT 0"],
+    ["selected_pet_id", "TEXT"]
+  ]);
 }
 
 function ensureSceneClusterColumns(db: Database.Database): void {
@@ -25,6 +30,13 @@ function ensureMotionClipColumns(db: Database.Database): void {
     ["provider_error_message", "TEXT"],
     ["postprocess_json", "TEXT"]
   ]);
+}
+
+function ensureIndexes(db: Database.Database): void {
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_projects_public_ready
+       ON projects(is_public, status, completed_at)`
+  );
 }
 
 function ensureColumns(

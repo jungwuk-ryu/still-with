@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -46,6 +47,8 @@ interface PublicSpacePreviewImage {
 
 interface PublicProjectStatus {
   projectId: string;
+  displayName: string | null;
+  isPublic: boolean;
   status: ProjectStatus;
   stage: PublicLoadingStage;
   retry: GentleRetryState | null;
@@ -64,20 +67,36 @@ interface LoadingProgressProps {
   projectId: string;
   initialStatus: PublicProjectStatus | null;
   stageTitles: string[];
+  publicEntry?: boolean;
 }
 
 const LOADING_AMBIENT_AUDIO_SRC =
   "/audio/floating-dream-loop-2026-04-26.mp3";
-const LOADING_AMBIENT_VOLUME = 0.34;
+const LOADING_AMBIENT_VOLUME = 1;
 const AUDIO_FADE_DURATION_MS = 720;
+const PUBLIC_ENTRY_STAGE_MS = 5_000;
+const PUBLIC_ENTRY_DESCRIPTIONS = [
+  "Gathering the light already waiting in this dream.",
+  "Opening the familiar traces without changing them.",
+  "Letting the room settle into view.",
+  "Preloading the space before you step inside.",
+  "Bringing the gentle presence into place.",
+  "Listening for the quiet details.",
+  "Your memory space is ready when you are."
+];
+type AmbientAudioPlaybackState = "playing" | "paused" | "blocked";
 
 export function LoadingProgress({
   projectId,
   initialStatus,
-  stageTitles
+  stageTitles,
+  publicEntry = false
 }: LoadingProgressProps) {
   const router = useRouter();
   const [status, setStatus] = useState<PublicProjectStatus | null>(initialStatus);
+  const [publicEntryStageIndex, setPublicEntryStageIndex] = useState(
+    publicEntry ? 0 : null
+  );
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [isMissingProject, setIsMissingProject] = useState(initialStatus === null);
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
@@ -86,7 +105,8 @@ export function LoadingProgress({
   const [emailError, setEmailError] = useState<string | null>(null);
   const [isSubmittingEmail, setIsSubmittingEmail] = useState(false);
   const [isAmbientSoundEnabled, setIsAmbientSoundEnabled] = useState(true);
-  const [ambientAudioNeedsGesture, setAmbientAudioNeedsGesture] = useState(false);
+  const [ambientAudioPlaybackState, setAmbientAudioPlaybackState] =
+    useState<AmbientAudioPlaybackState>("paused");
   const [hasEmailSubscription, setHasEmailSubscription] = useState(
     initialStatus?.hasCompletionEmailSubscription ?? false
   );
@@ -97,7 +117,83 @@ export function LoadingProgress({
   const ambientFadeRef = useRef<number | null>(null);
   const ambientAudioInitializedRef = useRef(false);
 
+  const fadeAmbientAudioTo = useCallback(
+    (targetVolume: number, onComplete?: () => void) => {
+      const audio = ambientAudioRef.current;
+
+      if (!audio) {
+        onComplete?.();
+        return;
+      }
+
+      if (ambientFadeRef.current !== null) {
+        window.cancelAnimationFrame(ambientFadeRef.current);
+      }
+
+      const startVolume = audio.volume;
+      const startedAt = performance.now();
+      const activeAudio = audio;
+
+      function step(now: number) {
+        const progress = Math.min(
+          (now - startedAt) / AUDIO_FADE_DURATION_MS,
+          1
+        );
+        const easedProgress = 1 - Math.pow(1 - progress, 3);
+        activeAudio.volume =
+          startVolume + (targetVolume - startVolume) * easedProgress;
+
+        if (progress < 1) {
+          ambientFadeRef.current = window.requestAnimationFrame(step);
+          return;
+        }
+
+        ambientFadeRef.current = null;
+        activeAudio.volume = targetVolume;
+        onComplete?.();
+      }
+
+      ambientFadeRef.current = window.requestAnimationFrame(step);
+    },
+    []
+  );
+
+  const playAmbientAudio = useCallback(() => {
+    const audio = ambientAudioRef.current;
+
+    if (!audio) {
+      return;
+    }
+
+    if (!ambientAudioInitializedRef.current) {
+      audio.volume = 0;
+      ambientAudioInitializedRef.current = true;
+    }
+
+    void audio
+      .play()
+      .then(() => {
+        setAmbientAudioPlaybackState("playing");
+        fadeAmbientAudioTo(LOADING_AMBIENT_VOLUME);
+      })
+      .catch(() => {
+        setAmbientAudioPlaybackState("blocked");
+      });
+  }, [fadeAmbientAudioTo]);
+
+  const playAmbientAudioWhenReady = useCallback(() => {
+    if (!isAmbientSoundEnabled) {
+      return;
+    }
+
+    playAmbientAudio();
+  }, [isAmbientSoundEnabled, playAmbientAudio]);
+
   useEffect(() => {
+    if (publicEntry) {
+      return;
+    }
+
     let isActive = true;
 
     async function refreshStatus() {
@@ -141,10 +237,41 @@ export function LoadingProgress({
       isActive = false;
       window.clearInterval(intervalId);
     };
-  }, [projectId]);
+  }, [projectId, publicEntry]);
 
   useEffect(() => {
-    if (!status?.needsClarification || !status.nextRoute) {
+    if (!publicEntry || !status?.nextRoute) {
+      return;
+    }
+
+    router.prefetch(status.nextRoute);
+
+    for (const preview of status.spacePreviewImages.slice(0, 2)) {
+      const image = new Image();
+      image.src = preview.url;
+    }
+  }, [publicEntry, router, status?.nextRoute, status?.spacePreviewImages]);
+
+  useEffect(() => {
+    if (
+      !publicEntry ||
+      publicEntryStageIndex === null ||
+      publicEntryStageIndex >= stageTitles.length - 1
+    ) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setPublicEntryStageIndex((currentIndex) =>
+        Math.min((currentIndex ?? 0) + 1, stageTitles.length - 1)
+      );
+    }, PUBLIC_ENTRY_STAGE_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [publicEntry, publicEntryStageIndex, stageTitles.length]);
+
+  useEffect(() => {
+    if (publicEntry || !status?.needsClarification || !status.nextRoute) {
       return;
     }
 
@@ -153,7 +280,7 @@ export function LoadingProgress({
     }, 900);
 
     return () => window.clearTimeout(timeoutId);
-  }, [projectId, router, status?.needsClarification, status?.nextRoute]);
+  }, [projectId, publicEntry, router, status?.needsClarification, status?.nextRoute]);
 
   useEffect(() => {
     if (!isEmailDialogOpen) {
@@ -216,47 +343,41 @@ export function LoadingProgress({
     }
 
     if (isAmbientSoundEnabled) {
-      void audio.play().then(() => {
-        setAmbientAudioNeedsGesture(false);
-        fadeAmbientAudioTo(LOADING_AMBIENT_VOLUME);
-      }).catch(() => {
-        setAmbientAudioNeedsGesture(true);
-      });
-    } else {
-      fadeAmbientAudioTo(0, () => {
-        audio.pause();
-      });
-    }
-  }, [isAmbientSoundEnabled]);
-
-  useEffect(() => {
-    if (!ambientAudioNeedsGesture || !isAmbientSoundEnabled) {
+      playAmbientAudio();
       return;
     }
 
-    function resumeAmbientAudio() {
-      const audio = ambientAudioRef.current;
-
-      if (!audio) {
-        return;
-      }
-
-      void audio.play().then(() => {
-        setAmbientAudioNeedsGesture(false);
-        fadeAmbientAudioTo(LOADING_AMBIENT_VOLUME);
-      }).catch(() => {
-        setAmbientAudioNeedsGesture(true);
-      });
+    if (ambientFadeRef.current !== null) {
+      window.cancelAnimationFrame(ambientFadeRef.current);
+      ambientFadeRef.current = null;
     }
 
-    window.addEventListener("pointerdown", resumeAmbientAudio, { once: true });
-    window.addEventListener("keydown", resumeAmbientAudio, { once: true });
+    if (audio.paused) {
+      setAmbientAudioPlaybackState("paused");
+    } else {
+      fadeAmbientAudioTo(0, () => {
+        audio.pause();
+        setAmbientAudioPlaybackState("paused");
+      });
+    }
+  }, [fadeAmbientAudioTo, isAmbientSoundEnabled, playAmbientAudio]);
+
+  useEffect(() => {
+    if (
+      ambientAudioPlaybackState !== "blocked" ||
+      !isAmbientSoundEnabled
+    ) {
+      return;
+    }
+
+    window.addEventListener("pointerdown", playAmbientAudio, { once: true });
+    window.addEventListener("keydown", playAmbientAudio, { once: true });
 
     return () => {
-      window.removeEventListener("pointerdown", resumeAmbientAudio);
-      window.removeEventListener("keydown", resumeAmbientAudio);
+      window.removeEventListener("pointerdown", playAmbientAudio);
+      window.removeEventListener("keydown", playAmbientAudio);
     };
-  }, [ambientAudioNeedsGesture, isAmbientSoundEnabled]);
+  }, [ambientAudioPlaybackState, isAmbientSoundEnabled, playAmbientAudio]);
 
   useEffect(
     () => () => {
@@ -267,50 +388,17 @@ export function LoadingProgress({
     []
   );
 
-  function fadeAmbientAudioTo(targetVolume: number, onComplete?: () => void) {
-    const audio = ambientAudioRef.current;
-
-    if (!audio) {
-      onComplete?.();
-      return;
-    }
-
-    if (ambientFadeRef.current !== null) {
-      window.cancelAnimationFrame(ambientFadeRef.current);
-    }
-
-    const startVolume = audio.volume;
-    const startedAt = performance.now();
-
-    function step(now: number) {
-      const progress = Math.min(
-        (now - startedAt) / AUDIO_FADE_DURATION_MS,
-        1
-      );
-      const easedProgress = 1 - Math.pow(1 - progress, 3);
-      audio.volume =
-        startVolume + (targetVolume - startVolume) * easedProgress;
-
-      if (progress < 1) {
-        ambientFadeRef.current = window.requestAnimationFrame(step);
-        return;
-      }
-
-      ambientFadeRef.current = null;
-      audio.volume = targetVolume;
-      onComplete?.();
-    }
-
-    ambientFadeRef.current = window.requestAnimationFrame(step);
-  }
-
-  const activeIndex = status?.stage.index ?? 0;
   const visibleStatus = useMemo(() => {
     if (status) {
+      if (publicEntry && publicEntryStageIndex !== null) {
+        return getPublicEntryStatus(status, publicEntryStageIndex, stageTitles);
+      }
+
       return status;
     }
 
     return {
+      projectId,
       stage: {
         index: 0,
         total: stageTitles.length,
@@ -323,12 +411,30 @@ export function LoadingProgress({
       error: null,
       canEnter: false,
       nextRoute: null,
+      displayName: null,
+      isPublic: false,
+      needsClarification: false,
+      uploadedImages: [],
       spacePreviewImages: [],
+      selectedPetId: null,
       hasCompletionEmailSubscription: hasEmailSubscription,
+      updatedAt: new Date().toISOString(),
       status: "uploading" as ProjectStatus
     };
-  }, [hasEmailSubscription, stageTitles, status]);
+  }, [
+    hasEmailSubscription,
+    projectId,
+    publicEntry,
+    publicEntryStageIndex,
+    stageTitles,
+    status
+  ]);
+  const activeIndex = visibleStatus.stage.index;
   const previewBackgroundImages = visibleStatus.spacePreviewImages.slice(0, 2);
+  const dreamTitle = getLoadingTitle(visibleStatus.displayName, publicEntry);
+  const dreamSubtitle = publicEntry
+    ? "The room is already prepared. We are preloading the dream before you step inside."
+    : "A familiar room is slowly taking shape, like stepping into a soft dream.";
   const emailFeedbackId = "completion-email-feedback";
   const emailErrorId = "completion-email-error";
   const emailDescriptionId = "completion-email-description";
@@ -418,6 +524,7 @@ export function LoadingProgress({
         src={LOADING_AMBIENT_AUDIO_SRC}
         preload="auto"
         loop
+        onCanPlay={playAmbientAudioWhenReady}
       />
 
       {previewBackgroundImages.length > 0 ? (
@@ -441,42 +548,38 @@ export function LoadingProgress({
         aria-hidden={isEmailDialogOpen ? "true" : undefined}
       >
         <p className="eyebrow">{visibleStatus.stage.label}</p>
-        <h1 id="loading-title">Waking a quiet memory</h1>
-        <p className="panel-subtitle">
-          A familiar room is slowly taking shape, like stepping into a soft
-          dream.
-        </p>
+        <h1 id="loading-title">{dreamTitle}</h1>
+        <p className="panel-subtitle">{dreamSubtitle}</p>
         <button
           type="button"
           className="loading-sound-toggle"
-          aria-pressed={isAmbientSoundEnabled}
+          aria-label={
+            isAmbientSoundEnabled &&
+            ambientAudioPlaybackState === "playing"
+              ? "Pause loading room tone"
+              : "Play loading room tone"
+          }
+          aria-pressed={
+            isAmbientSoundEnabled &&
+            ambientAudioPlaybackState === "playing"
+          }
           onClick={() => {
-            if (isAmbientSoundEnabled && ambientAudioNeedsGesture) {
-              const audio = ambientAudioRef.current;
-
-              if (audio) {
-                void audio.play().then(() => {
-                  setAmbientAudioNeedsGesture(false);
-                  fadeAmbientAudioTo(LOADING_AMBIENT_VOLUME);
-                }).catch(() => {
-                  setAmbientAudioNeedsGesture(true);
-                });
-              }
-
+            if (
+              isAmbientSoundEnabled &&
+              ambientAudioPlaybackState !== "playing"
+            ) {
+              playAmbientAudio();
               return;
             }
 
-            setAmbientAudioNeedsGesture(false);
             setIsAmbientSoundEnabled((enabled) => !enabled);
           }}
         >
-          <span className="loading-sound-toggle-mark" aria-hidden="true" />
           <span>
-            {isAmbientSoundEnabled
-              ? ambientAudioNeedsGesture
-                ? "Tap to start ambient sound"
-                : "Ambient sound on"
-              : "Ambient sound off"}
+            {getAmbientAudioLabel(
+              isAmbientSoundEnabled,
+              ambientAudioPlaybackState
+            )}
           </span>
         </button>
 
@@ -496,7 +599,7 @@ export function LoadingProgress({
           ))}
         </ol>
 
-        {!visibleStatus.canEnter ? (
+        {!visibleStatus.canEnter && !publicEntry ? (
           <div className="completion-email-cta">
             <button
               ref={emailTriggerRef}
@@ -629,4 +732,58 @@ function getStageClassName(index: number, activeIndex: number): string {
   }
 
   return "";
+}
+
+function getPublicEntryStatus(
+  status: PublicProjectStatus,
+  stageIndex: number,
+  stageTitles: string[]
+): PublicProjectStatus {
+  const safeStageIndex = Math.min(stageIndex, stageTitles.length - 1);
+  const canEnter = safeStageIndex >= stageTitles.length - 1 && status.canEnter;
+
+  return {
+    ...status,
+    stage: {
+      index: safeStageIndex,
+      total: stageTitles.length,
+      label: `Step ${safeStageIndex + 1} of ${stageTitles.length}`,
+      title: stageTitles[safeStageIndex] ?? status.stage.title,
+      description:
+        PUBLIC_ENTRY_DESCRIPTIONS[safeStageIndex] ?? status.stage.description
+    },
+    canEnter,
+    nextRoute: canEnter ? status.nextRoute : null,
+    retry: null,
+    error: null
+  };
+}
+
+function getLoadingTitle(displayName: string | null, publicEntry: boolean): string {
+  if (displayName) {
+    return publicEntry
+      ? `Opening ${getPossessiveName(displayName)} dream`
+      : `Waking ${getPossessiveName(displayName)} dream`;
+  }
+
+  return publicEntry ? "Opening a quiet dream" : "Waking a quiet memory";
+}
+
+function getPossessiveName(displayName: string): string {
+  return displayName.endsWith("s") ? `${displayName}'` : `${displayName}'s`;
+}
+
+function getAmbientAudioLabel(
+  isEnabled: boolean,
+  playbackState: AmbientAudioPlaybackState
+): string {
+  if (!isEnabled) {
+    return "Room tone resting";
+  }
+
+  if (playbackState === "playing") {
+    return "Room tone drifting";
+  }
+
+  return "Wake the room tone";
 }

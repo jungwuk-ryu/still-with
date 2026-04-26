@@ -8,7 +8,12 @@ export default function UploadPage() {
         <Link className="brand-mark" href="/">
           Still With
         </Link>
-        <span className="nav-pill">Private by design</span>
+        <div className="nav-actions">
+          <Link className="nav-pill" href="/projects">
+            Dreams
+          </Link>
+          <span className="nav-pill">Private by default</span>
+        </div>
       </nav>
 
       <section className="upload-grid" aria-labelledby="upload-title">

@@ -18,6 +18,8 @@ import {
   getProjectBundle,
   getLoadingStage,
   getPublicProjectStatus,
+  listPublicDreams,
+  ProjectUploadValidationError,
   submitProjectClarification,
   updateProjectLifecycle
 } from ".";
@@ -79,6 +81,105 @@ describe("intake project flow", () => {
       db: context.db
     });
     expect(publicStatus?.nextRoute).toBeNull();
+    expect(publicStatus?.displayName).toBeNull();
+    expect(publicStatus?.isPublic).toBe(false);
+  });
+
+  it("stores the pet name as the dream name and public setting", async () => {
+    const context = await createTestContext();
+
+    const result = await createProjectFromUploads(
+      [createImageUpload("one.jpg"), createImageUpload("two.jpg")],
+      {
+        db: context.db,
+        storage: context.storage,
+        settings: {
+          displayName: "  Mochi   Bear  ",
+          isPublic: true
+        }
+      }
+    );
+
+    expect(result.project).toMatchObject({
+      displayName: "Mochi Bear",
+      isPublic: true
+    });
+    expect(getPublicProjectStatus(result.project.id, { db: context.db })).toMatchObject({
+      displayName: "Mochi Bear",
+      isPublic: true
+    });
+  });
+
+  it("rejects dream names that are too long", async () => {
+    const context = await createTestContext();
+
+    await expect(
+      createProjectFromUploads(
+        [createImageUpload("one.jpg"), createImageUpload("two.jpg")],
+        {
+          db: context.db,
+          storage: context.storage,
+          settings: {
+            displayName: "M".repeat(81)
+          }
+        }
+      )
+    ).rejects.toBeInstanceOf(ProjectUploadValidationError);
+  });
+
+  it("lists only ready public dreams", async () => {
+    const context = await createTestContext();
+    const publicDream = await createProjectFromUploads(
+      [createImageUpload("one.jpg"), createImageUpload("two.jpg")],
+      {
+        db: context.db,
+        storage: context.storage,
+        settings: {
+          displayName: "Mochi",
+          isPublic: true
+        }
+      }
+    );
+    const privateDream = await createProjectFromUploads(
+      [createImageUpload("three.jpg"), createImageUpload("four.jpg")],
+      {
+        db: context.db,
+        storage: context.storage,
+        settings: {
+          displayName: "Bori",
+          isPublic: false
+        }
+      }
+    );
+    const unfinishedPublicDream = await createProjectFromUploads(
+      [createImageUpload("five.jpg"), createImageUpload("six.jpg")],
+      {
+        db: context.db,
+        storage: context.storage,
+        settings: {
+          displayName: "Nabi",
+          isPublic: true
+        }
+      }
+    );
+
+    markReadyDream(context.db, publicDream.project.id, "public-scene");
+    markReadyDream(context.db, privateDream.project.id, "private-scene");
+
+    expect(listPublicDreams(context.db)).toEqual([
+      expect.objectContaining({
+        projectId: publicDream.project.id,
+        displayName: "Mochi",
+        title: "Mochi's dream",
+        href: `/projects/${publicDream.project.id}/loading?entry=public`,
+        thumbnailUrl: `/api/storage/projects/${publicDream.project.id}/world/thumb.jpg`
+      })
+    ]);
+    expect(
+      listPublicDreams(context.db).some(
+        (dream) => dream.projectId === unfinishedPublicDream.project.id
+      )
+    ).toBe(false);
   });
 
   it("submits clarification and resumes analysis from the loading lifecycle", async () => {
@@ -366,6 +467,59 @@ function markProjectAsNeedingClarification(
          updated_at = ?
      WHERE id = ?`
   ).run(stage.title, stage.index, new Date().toISOString(), projectId);
+}
+
+function markReadyDream(
+  db: DatabaseClient,
+  projectId: string,
+  sceneClusterId: string
+): void {
+  createSceneClusterRecord(
+    {
+      id: sceneClusterId,
+      projectId,
+      label: "Living room",
+      sourceImageIds: [],
+      representativeImageIds: [],
+      spatialPrompt: "A quiet living room.",
+      seedImageUrls: [`/api/storage/projects/${projectId}/space-seeds/front.png`],
+      seedPromptVersion: SPACE_RECONSTRUCTION_PROMPT_VERSION,
+      worldId: `world-${sceneClusterId}`,
+      status: "ready"
+    },
+    db
+  );
+  db.prepare(
+    `INSERT INTO world_assets (
+      id, project_id, scene_cluster_id, world_id,
+      spz_url_100k, spz_url_500k, spz_url_full_res,
+      collider_mesh_url, pano_url, thumbnail_url, ground_plane_offset,
+      initial_camera_pose_json, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    `world-asset-${sceneClusterId}`,
+    projectId,
+    sceneClusterId,
+    `world-${sceneClusterId}`,
+    null,
+    `/api/storage/projects/${projectId}/world/500k.spz`,
+    null,
+    `/api/storage/projects/${projectId}/world/collider.glb`,
+    `/api/storage/projects/${projectId}/world/pano.jpg`,
+    `/api/storage/projects/${projectId}/world/thumb.jpg`,
+    0,
+    null,
+    new Date().toISOString(),
+    new Date().toISOString()
+  );
+  updateProjectLifecycle(
+    projectId,
+    {
+      status: "ready",
+      completedAt: "2026-04-26T00:00:00.000Z"
+    },
+    db
+  );
 }
 
 async function countStoredFiles(directory: string): Promise<number> {

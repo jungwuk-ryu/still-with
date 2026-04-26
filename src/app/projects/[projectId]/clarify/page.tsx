@@ -38,7 +38,11 @@ export default async function ClarifyPage({
     <main className="app-shell app-shell-centered">
       <section className="clarify-panel" aria-labelledby="clarify-title">
         <p className="eyebrow">A little more detail</p>
-        <h1 id="clarify-title">Which one should we bring into the memory?</h1>
+        <h1 id="clarify-title">
+          {status.displayName
+            ? `Which photo shows ${status.displayName}?`
+            : "Which one should we bring into the memory?"}
+        </h1>
         <p className="panel-subtitle">
           Tell us a visual detail, like &ldquo;the small white dog with brown
           ears&rdquo; or &ldquo;the cat with the blue collar.&rdquo;

@@ -21,6 +21,8 @@ export interface Project {
   id: string;
   createdAt: ISODateString;
   updatedAt: ISODateString;
+  displayName: string | null;
+  isPublic: boolean;
   status: ProjectStatus;
   currentStage: string | null;
   currentStepIndex: number;
