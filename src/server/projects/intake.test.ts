@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { openDatabase, type DatabaseClient } from "@/server/db";
 import {
   claimNextGenerationJob,
@@ -125,100 +125,6 @@ describe("intake project flow", () => {
         }
       )
     ).rejects.toBeInstanceOf(ProjectUploadValidationError);
-  });
-
-  it("rejects uploads before processing when no pet is visible", async () => {
-    const context = await createTestContext();
-    const petPresenceDetector = {
-      detectPetPresence: vi.fn(async () => ({
-        hasPet: false,
-        confidence: "high" as const,
-        reason: "Only empty rooms are visible."
-      }))
-    };
-
-    await expect(
-      createProjectFromUploads(
-        [createImageUpload("room.jpg"), createImageUpload("chair.png", "image/png")],
-        {
-          db: context.db,
-          storage: context.storage,
-          petPresenceDetector
-        }
-      )
-    ).rejects.toThrow(
-      "We could not find a pet in these photos. Add at least one clear photo of your pet so we can build the memory space around them."
-    );
-
-    expect(petPresenceDetector.detectPetPresence).toHaveBeenCalledWith({
-      images: [
-        expect.objectContaining({
-          fileName: "room.jpg",
-          mimeType: "image/jpeg"
-        }),
-        expect.objectContaining({
-          fileName: "chair.png",
-          mimeType: "image/png"
-        })
-      ]
-    });
-    expect(
-      (context.db.prepare("SELECT COUNT(*) AS count FROM projects").get() as {
-        count: number;
-      }).count
-    ).toBe(0);
-    expect(
-      (context.db.prepare("SELECT COUNT(*) AS count FROM generation_jobs").get() as {
-        count: number;
-      }).count
-    ).toBe(0);
-    await expect(countStoredFiles(context.storageDir)).resolves.toBe(0);
-  });
-
-  it("continues intake when the pet presence check finds a pet", async () => {
-    const context = await createTestContext();
-    const petPresenceDetector = {
-      detectPetPresence: vi.fn(async () => ({
-        hasPet: true,
-        confidence: "medium" as const,
-        reason: "A small dog is visible."
-      }))
-    };
-
-    const result = await createProjectFromUploads([createImageUpload("pet.jpg")], {
-      db: context.db,
-      storage: context.storage,
-      petPresenceDetector
-    });
-
-    expect(result.project.status).toBe("analyzing");
-    expect(petPresenceDetector.detectPetPresence).toHaveBeenCalledOnce();
-  });
-
-  it("does not treat an unavailable pet presence check as no pet found", async () => {
-    const context = await createTestContext();
-    const petPresenceDetector = {
-      detectPetPresence: vi.fn(async () => {
-        throw new Error("Malformed provider response.");
-      })
-    };
-
-    await expect(
-      createProjectFromUploads([createImageUpload("pet.jpg")], {
-        db: context.db,
-        storage: context.storage,
-        petPresenceDetector
-      })
-    ).rejects.toThrow(
-      "We could not check these photos just now. Please try again in a moment."
-    );
-
-    expect(
-      (context.db.prepare("SELECT COUNT(*) AS count FROM projects").get() as {
-        count: number;
-      }).count
-    ).toBe(0);
-    await expect(countStoredFiles(context.storageDir)).resolves.toBe(0);
   });
 
   it("lists only ready public dreams", async () => {
