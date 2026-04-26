@@ -5,9 +5,9 @@ import {
 import {
   applyPlannedMotion,
   fallbackAssistantMessage,
-  inferMotionIntent,
   planMotionFromClips
 } from "./motion";
+import { selectMotionIntentWithAgent } from "./motion-agent";
 import type { ConversationTurnResult } from "./types";
 
 export async function createConversationTurn(
@@ -18,7 +18,12 @@ export async function createConversationTurn(
   const manifest = getExperienceManifest(projectId, undefined, {
     issueAccessTokens: false
   });
-  const intent = inferMotionIntent(trimmedMessage);
+  const decision = await selectMotionIntentWithAgent({
+    message: trimmedMessage,
+    motionClips: manifest.pet.motionClips,
+    runtimeState: manifest.pet.runtimeState
+  });
+  const intent = decision.intent;
   const motion = planMotionFromClips(
     intent,
     manifest.pet.motionClips,
@@ -33,6 +38,6 @@ export async function createConversationTurn(
     assistantMessage: fallbackAssistantMessage(intent),
     motion,
     petState,
-    model: null
+    model: decision.model
   };
 }

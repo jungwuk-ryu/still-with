@@ -3,7 +3,6 @@ import type { MotionClip, PetRuntimeState } from "@/types";
 import {
   applyPlannedMotion,
   fallbackAssistantMessage,
-  inferMotionIntent,
   planMotionFromClips
 } from "./motion";
 
@@ -21,7 +20,8 @@ function createClip(
   motionKey: string,
   fromState: string,
   toState: string,
-  videoUrl = `/api/storage/pets/${motionKey}.mp4`
+  videoUrl = `/api/storage/pets/${motionKey}.mp4`,
+  loopable = false
 ): MotionClip {
   return {
     id: "clip-1",
@@ -36,7 +36,7 @@ function createClip(
     processedVideoUrl: videoUrl,
     alphaVideoUrl: null,
     durationMs: 1800,
-    loopable: false,
+    loopable,
     qualityScore: 0.8,
     providerOperationId: null,
     providerName: null,
@@ -55,12 +55,6 @@ const clip = createClip(
 );
 
 describe("motion intent planning", () => {
-  it("detects direct motion requests", () => {
-    expect(inferMotionIntent("Can you sit down here?")).toBe("sit");
-    expect(inferMotionIntent("come closer to me")).toBe("come_closer");
-    expect(inferMotionIntent("turn around once")).toBe("turn_around");
-  });
-
   it("selects ready clips from the pet contract", () => {
     const motion = planMotionFromClips("sit", [clip], runtimeState);
 
@@ -99,6 +93,25 @@ describe("motion intent planning", () => {
     expect(motion.clipId).toBeNull();
     expect(motion.toState).toBe("stand");
     expect(nextState.currentPose).toBe("stand");
+  });
+
+  it("keeps a sitting pet on the seated idle loop", () => {
+    const sittingRuntimeState: PetRuntimeState = {
+      ...runtimeState,
+      currentPose: "sit"
+    };
+    const sittingClip = createClip(
+      "sit",
+      "sit",
+      "sit",
+      "/api/storage/pets/sit-idle.mp4",
+      true
+    );
+    const motion = planMotionFromClips("sit", [clip, sittingClip], sittingRuntimeState);
+
+    expect(motion.videoUrl).toBe("/api/storage/pets/sit-idle.mp4");
+    expect(motion.loopable).toBe(true);
+    expect(motion.toState).toBe("sit");
   });
 
   it("returns action status copy instead of pet dialogue", () => {

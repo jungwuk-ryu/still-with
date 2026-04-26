@@ -7,13 +7,6 @@ import {
 } from "@/pet/motion-set";
 import type { MotionIntentKey, PlannedMotion } from "./types";
 
-const MOTION_PATTERNS: Array<[MotionIntentKey, RegExp]> = [
-  ["come_closer", /\b(come closer|come here|closer|near me|move closer|come over)\b/i],
-  ["turn_around", /\b(turn around|spin|turn|look back)\b/i],
-  ["sit", /\b(sit|sit down|settle|rest)\b/i],
-  ["look_at_me", /\b(look at me|look here|watch me|face me|eyes)\b/i]
-];
-
 const RESPONSE_BY_INTENT: Record<MotionIntentKey, string> = {
   idle: "A quiet idle movement plays.",
   look_at_me: "Your pet turns gently toward you.",
@@ -21,19 +14,6 @@ const RESPONSE_BY_INTENT: Record<MotionIntentKey, string> = {
   sit: "Your pet settles into a calm sit.",
   come_closer: "Your pet takes a small step closer."
 };
-
-export function inferMotionIntent(message: string): MotionIntentKey {
-  const normalized = message.trim();
-
-  if (!normalized) {
-    return "idle";
-  }
-
-  return (
-    MOTION_PATTERNS.find(([, pattern]) => pattern.test(normalized))?.[0] ??
-    "look_at_me"
-  );
-}
 
 export function fallbackAssistantMessage(intent: MotionIntentKey): string {
   return RESPONSE_BY_INTENT[intent];
