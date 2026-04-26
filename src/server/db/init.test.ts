@@ -33,6 +33,7 @@ describe("initializeDatabase", () => {
     expect(tables.map((table) => table.name)).toContain("projects");
     expect(tables.map((table) => table.name)).toContain("generation_jobs");
     expect(tables.map((table) => table.name)).toContain("world_assets");
+    expect(tables.map((table) => table.name)).toContain("audio_assets");
 
     const projectColumns = db
       .prepare("PRAGMA table_info(projects)")

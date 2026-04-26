@@ -7,9 +7,17 @@ import type {
   PetRuntimeState,
   WorldAsset
 } from "@/types";
+import {
+  BACKGROUND_MUSIC_ASSET_KEY,
+  listAudioAssetRecords
+} from "@/server/audio";
 import { getDatabase, type DatabaseClient } from "@/server/db/connection";
 import { createSpaceAccessToken } from "@/server/realtime/space-access";
-import type { ExperienceManifest } from "./types";
+import type {
+  ExperienceAudioManifest,
+  ExperienceManifest,
+  MotionIntentKey
+} from "./types";
 
 const DEMO_SPZ_URL = "https://sparkjs.dev/assets/splats/butterfly.spz";
 
@@ -103,6 +111,7 @@ export function getExperienceManifest(
     db
   );
   const motionClips = petProfile ? getMotionClips(projectId, petProfile.id, db) : [];
+  const audio = getExperienceAudioManifest(projectId, db);
   const runtimeState = getPetRuntimeState(projectId, db) ?? {
     projectId,
     currentPose: "stand",
@@ -154,6 +163,7 @@ export function getExperienceManifest(
         height: 1.38
       }
     },
+    audio,
     chatAccessToken: canIssueAccessTokens
       ? createSpaceAccessToken(projectId, Date.now(), db)
       : null,
@@ -162,6 +172,51 @@ export function getExperienceManifest(
       : null,
     generatedAt: new Date().toISOString()
   };
+}
+
+function getExperienceAudioManifest(
+  projectId: string,
+  db: DatabaseClient
+): ExperienceAudioManifest {
+  const readyAudioAssets = listAudioAssetRecords(projectId, db).filter(
+    (asset) => asset.status === "ready" && asset.audioUrl
+  );
+  const backgroundMusic =
+    readyAudioAssets.find(
+      (asset) =>
+        asset.kind === "background_music" &&
+        asset.assetKey === BACKGROUND_MUSIC_ASSET_KEY
+    )?.audioUrl ?? null;
+  const petSoundEffects: Partial<Record<MotionIntentKey, string>> = {};
+
+  for (const asset of readyAudioAssets) {
+    const audioUrl = asset.audioUrl;
+
+    if (
+      !audioUrl ||
+      asset.kind !== "pet_sound_effect" ||
+      !isMotionIntentKey(asset.assetKey)
+    ) {
+      continue;
+    }
+
+    petSoundEffects[asset.assetKey] = audioUrl;
+  }
+
+  return {
+    backgroundMusicUrl: backgroundMusic,
+    petSoundEffects
+  };
+}
+
+function isMotionIntentKey(value: string): value is MotionIntentKey {
+  return (
+    value === "idle" ||
+    value === "look_at_me" ||
+    value === "turn_around" ||
+    value === "sit" ||
+    value === "come_closer"
+  );
 }
 
 export function updatePetRuntimeState(

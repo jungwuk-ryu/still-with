@@ -724,6 +724,57 @@ textarea {
   pointer-events: none;
 }
 
+.space-audio-toggle {
+  position: fixed;
+  top: 62px;
+  left: 16px;
+  z-index: 18;
+  width: 40px;
+  height: 40px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid rgba(19, 21, 23, 0.1);
+  border-radius: 9999px;
+  color: rgba(19, 21, 23, 0.76);
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: 0 12px 36px rgba(19, 21, 23, 0.12);
+  backdrop-filter: blur(16px);
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.space-audio-toggle:hover,
+.space-audio-toggle:focus-visible {
+  color: rgba(19, 21, 23, 0.94);
+  background: rgba(255, 255, 255, 0.82);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.space-audio-toggle svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.space-audio-toggle svg path:first-child {
+  fill: currentColor;
+  stroke: none;
+}
+
+.space-audio-toggle-blocked {
+  color: rgba(91, 53, 31, 0.82);
+  background: rgba(255, 236, 210, 0.72);
+}
+
 .space-debug-overlay {
   position: absolute;
   top: 16px;

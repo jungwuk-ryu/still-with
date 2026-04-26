@@ -8,7 +8,7 @@ Still With is a Next.js/TypeScript memorial experience for companion-animal loss
 - `src/components`: upload, loading, clarification, chat, realtime, and 3D space UI.
 - `src/server/db`: SQLite schema, connection, and project persistence.
 - `src/server/jobs`: in-process generation job handlers and tests.
-- `src/server/providers`: OpenAI, World Labs, Sora, and Veo provider adapters. Keep secrets server-side only.
+- `src/server/providers`: OpenAI, World Labs, Sora, Veo, and ElevenLabs provider adapters. Keep secrets server-side only.
 - `src/server/storage`: local filesystem storage, signed storage URLs, and provider image URL helpers.
 - `src/server/motion`, `src/pet`, `src/world`, `src/ai`: pet motion, world manifests, and AI prompt/domain logic.
 - `src/styles`: global styles and design tokens.

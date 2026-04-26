@@ -49,7 +49,7 @@ export const LOADING_STAGES: LoadingStage[] = [
     title: "Listening for the right feeling",
     description: "Keeping the result close, quiet, and respectful.",
     projectStatuses: ["preparing_pet"],
-    jobTypes: ["quality-evaluation"]
+    jobTypes: ["quality-evaluation", "elevenlabs-audio"]
   },
   {
     index: 6,

@@ -122,6 +122,25 @@ CREATE TABLE IF NOT EXISTS pet_runtime_states (
   FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS audio_assets (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  asset_key TEXT NOT NULL,
+  prompt TEXT NOT NULL,
+  audio_url TEXT,
+  content_type TEXT NOT NULL DEFAULT 'audio/mpeg',
+  duration_ms INTEGER,
+  provider_name TEXT,
+  provider_status TEXT,
+  provider_error_message TEXT,
+  status TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  UNIQUE(project_id, kind, asset_key)
+);
+
 CREATE TABLE IF NOT EXISTS generation_jobs (
   id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL,
@@ -162,6 +181,7 @@ CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
 CREATE INDEX IF NOT EXISTS idx_uploaded_images_project ON uploaded_images(project_id, upload_order);
 CREATE INDEX IF NOT EXISTS idx_scene_clusters_project ON scene_clusters(project_id, status);
 CREATE INDEX IF NOT EXISTS idx_motion_clips_project ON motion_clips(project_id, motion_key);
+CREATE INDEX IF NOT EXISTS idx_audio_assets_project ON audio_assets(project_id, kind, asset_key);
 CREATE INDEX IF NOT EXISTS idx_generation_jobs_claimable
   ON generation_jobs(status, run_after, priority, created_at);
 CREATE INDEX IF NOT EXISTS idx_generation_jobs_project
