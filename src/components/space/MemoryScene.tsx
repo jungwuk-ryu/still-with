@@ -34,6 +34,8 @@ interface SceneRuntime {
   setVideoUrl: PetBillboard["setVideoUrl"];
 }
 
+const PET_FORWARD_Z_OFFSET = -0.36;
+
 export function MemoryScene({
   manifest,
   activeMotion,
@@ -161,8 +163,9 @@ export function MemoryScene({
       groundPlaneOffset: manifest.world.groundPlaneOffset,
       showDemoGround: manifest.world.source === "demo-stub"
     });
+    const petPlacement = movePetPlacementForward(manifest.pet.placement);
     const billboard = createPetBillboard({
-      ...manifest.pet.placement,
+      ...petPlacement,
       videoUrl: getIdleVideoUrlForPose(manifest, petState.currentPose),
       chromaKeyColor: manifest.pet.chromaKeyColor,
       posterUrl: manifest.pet.posterUrl
@@ -172,9 +175,9 @@ export function MemoryScene({
       0.58
     );
     contactShadow.position.set(
-      manifest.pet.placement.position[0],
-      manifest.pet.placement.position[1] + 0.012,
-      manifest.pet.placement.position[2] + 0.02
+      petPlacement.position[0],
+      petPlacement.position[1] + 0.012,
+      petPlacement.position[2] + 0.02
     );
     petScene.add(contactShadow);
     petScene.add(billboard.group);
@@ -264,10 +267,10 @@ export function MemoryScene({
         camera,
         lookAtTarget,
         manifest.world.initialCameraPose,
-        manifest.pet.placement,
+        petPlacement,
         delta
       );
-      billboard.update(elapsed, active?.key ?? null, Math.max(motionAge, 0));
+      billboard.update(elapsed, active?.motionKey ?? null, Math.max(motionAge, 0));
       renderer.clear();
       renderer.render(scene, camera);
       renderer.clearDepth();
@@ -323,6 +326,19 @@ export function MemoryScene({
       />
     </section>
   );
+}
+
+function movePetPlacementForward(
+  placement: ExperienceManifest["pet"]["placement"]
+): ExperienceManifest["pet"]["placement"] {
+  return {
+    ...placement,
+    position: [
+      placement.position[0],
+      placement.position[1],
+      placement.position[2] + PET_FORWARD_Z_OFFSET
+    ]
+  };
 }
 
 function createMemoryEnvironment(
