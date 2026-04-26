@@ -64,7 +64,7 @@ describe("scene classification handler", () => {
       )
       .get() as { type: string; payload_json: string; max_attempts: number };
     expect(nextJob.type).toBe("space-seed");
-    expect(nextJob.max_attempts).toBe(1);
+    expect(nextJob.max_attempts).toBe(2);
     expect(JSON.parse(nextJob.payload_json)).toMatchObject({
       sceneClusterId: sceneCluster.id,
       seedStrategy: "generated-multiview"

@@ -88,7 +88,7 @@ export function createSceneClassificationHandler(
                     backgroundSpace: true
                   },
                   priority: Math.min(job.priority, 3),
-                  maxAttempts: 1
+                  maxAttempts: 2
                 },
                 options.db
               );
@@ -151,7 +151,7 @@ export function createSceneClassificationHandler(
               priority: payload.backgroundPreview
                 ? Math.max(job.priority - 1, 0)
                 : job.priority,
-              maxAttempts: 1
+              maxAttempts: 2
             },
             options.db
           );

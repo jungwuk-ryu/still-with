@@ -226,7 +226,7 @@ export function ensureBackgroundSpaceGeneration(
           backgroundSpace: true
         },
         priority: 3,
-        maxAttempts: 1
+        maxAttempts: 2
       },
       db
     );

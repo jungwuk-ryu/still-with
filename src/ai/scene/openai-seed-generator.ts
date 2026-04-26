@@ -12,7 +12,7 @@ import type {
 const OPENAI_IMAGE_GENERATIONS_URL = "https://api.openai.com/v1/images/generations";
 const OPENAI_IMAGE_EDITS_URL = "https://api.openai.com/v1/images/edits";
 const DEFAULT_IMAGE_MODEL = "gpt-image-2";
-const DEFAULT_IMAGE_REQUEST_TIMEOUT_MS = 150_000;
+const DEFAULT_IMAGE_REQUEST_TIMEOUT_MS = 200_000;
 const DEFAULT_IMAGE_DOWNLOAD_TIMEOUT_MS = 30_000;
 
 export interface OpenAISceneSeedGeneratorOptions {
