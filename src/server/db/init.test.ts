@@ -33,5 +33,19 @@ describe("initializeDatabase", () => {
     expect(tables.map((table) => table.name)).toContain("projects");
     expect(tables.map((table) => table.name)).toContain("generation_jobs");
     expect(tables.map((table) => table.name)).toContain("world_assets");
+
+    const projectColumns = db
+      .prepare("PRAGMA table_info(projects)")
+      .all() as Array<{ name: string }>;
+    const motionClipColumns = db
+      .prepare("PRAGMA table_info(motion_clips)")
+      .all() as Array<{ name: string }>;
+
+    expect(projectColumns.map((column) => column.name)).toContain(
+      "selected_pet_id"
+    );
+    expect(motionClipColumns.map((column) => column.name)).toContain(
+      "postprocess_json"
+    );
   });
 });

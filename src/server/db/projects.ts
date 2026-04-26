@@ -88,6 +88,22 @@ export function updateProjectStatus(
   return getProjectRecord(projectId, db);
 }
 
+export function updateProjectSelectedPet(
+  projectId: string,
+  selectedPetId: string,
+  db: DatabaseClient = getDatabase()
+): Project | null {
+  const now = new Date().toISOString();
+
+  db.prepare(
+    `UPDATE projects
+     SET selected_pet_id = ?, updated_at = ?
+     WHERE id = ?`
+  ).run(selectedPetId, now, projectId);
+
+  return getProjectRecord(projectId, db);
+}
+
 function mapProjectRow(row: ProjectRow): Project {
   return {
     id: row.id,

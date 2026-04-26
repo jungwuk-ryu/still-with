@@ -126,7 +126,23 @@ export interface MotionClip {
   durationMs: number | null;
   loopable: boolean;
   qualityScore: number | null;
+  providerOperationId: string | null;
+  providerName: string | null;
+  providerStatus: string | null;
+  providerErrorMessage: string | null;
+  postprocess: MotionClipPostprocess | null;
   status: MotionClipStatus;
+}
+
+export interface MotionClipPostprocess {
+  chromaKeyColor: "green" | "blue";
+  alphaStrategy: "shader-chroma-key" | "fallback-still";
+  shaderUniforms: {
+    keyColor: [number, number, number];
+    similarity: number;
+    smoothness: number;
+    spill: number;
+  };
 }
 
 export interface PetRuntimeState {

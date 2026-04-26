@@ -27,6 +27,8 @@ export interface PetIdentityAnalysisResult {
 export interface ImageSeedInput {
   prompt: string;
   sourceImageUrls?: string[];
+  size?: string;
+  quality?: "low" | "medium" | "high" | "auto";
   context?: ProviderCallContext;
 }
 
@@ -109,13 +111,39 @@ export interface SoraOperation {
 }
 
 export interface SoraProvider {
+  providerName: "sora";
   createMotionClip(input: SoraMotionInput): Promise<SoraOperation>;
   getMotionClip(
     operationId: string,
     context?: ProviderCallContext
   ): Promise<SoraOperation>;
+  downloadMotionClipContent(
+    operationId: string,
+    context?: ProviderCallContext
+  ): Promise<Buffer>;
 }
+
+export interface VeoProvider {
+  providerName: "veo";
+  createMotionClip(input: SoraMotionInput): Promise<SoraOperation>;
+  getMotionClip(
+    operationId: string,
+    context?: ProviderCallContext
+  ): Promise<SoraOperation>;
+  downloadMotionClipContent(
+    operationId: string,
+    context?: ProviderCallContext
+  ): Promise<Buffer>;
+}
+
+export type MotionVideoProvider = SoraProvider | VeoProvider;
 
 export interface ProviderOptions {
   apiKey?: string;
+  apiBaseUrl?: string;
+  textModel?: string;
+  imageModel?: string;
+  soraModel?: string;
+  veoModel?: string;
+  realtimeModel?: string;
 }

@@ -112,6 +112,8 @@ function inferContentType(key: string): string {
       return "image/heic";
     case ".json":
       return "application/json";
+    case ".svg":
+      return "image/svg+xml";
     case ".mp4":
       return "video/mp4";
     case ".webm":
