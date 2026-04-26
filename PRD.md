@@ -1168,27 +1168,27 @@ For hackathon demo:
 - [ ] Verify network speed assumptions.
 - [ ] Record backup demo video.
 
-## 21. Mandatory Review Loop
+## 21. Mandatory Direct Verification Loop
 
-Before the project can be considered submission-ready, run a blocker-driven review loop with two sub-agents that have different perspectives.
+Before the project can be considered submission-ready, run a blocker-driven direct verification loop. Do not use reviewer sub-agents for this gate; the integration owner must personally inspect the result from two perspectives.
 
-Required reviewers:
+Required verification perspectives:
 
-- Sub-agent A: Product, UX, emotional safety, accessibility, and copy review.
-- Sub-agent B: Technical architecture, AI pipeline, 3D performance, security, and reliability review.
+- Product, UX, emotional safety, accessibility, and copy review.
+- Technical architecture, AI pipeline, 3D performance, security, and reliability review.
 
 Process:
 
 - [ ] Implement the planned feature set.
 - [ ] Run tests and browser verification.
-- [ ] Ask Sub-agent A for a code review from the product/UX/safety/accessibility perspective.
-- [ ] Ask Sub-agent B for a code review from the technical/AI/3D/performance/security perspective.
+- [ ] Directly review the code and UI from the product/UX/safety/accessibility perspective.
+- [ ] Directly review the code and runtime flow from the technical/AI/3D/performance/security perspective.
 - [ ] Collect all findings.
 - [ ] Classify findings as blocker, high, medium, or low.
 - [ ] Fix every blocker.
 - [ ] Re-run relevant tests after fixes.
-- [ ] Re-request review from both sub-agents if blockers were found.
-- [ ] Repeat fix -> review -> test until both sub-agents report zero blockers.
+- [ ] Repeat direct review after blockers are fixed.
+- [ ] Repeat fix -> review -> test until zero blockers remain.
 - [ ] Do not submit while any blocker remains.
 
 Blocker examples:
@@ -1220,7 +1220,7 @@ The MVP is accepted when:
 - At least one natural-language motion command works end to end.
 - All user-facing UI copy is English.
 - Required API keys are not exposed.
-- Two sub-agent reviews report zero blockers.
+- Direct product/UX/safety and technical verification reports zero blockers.
 
 ## 23. Open Risks
 

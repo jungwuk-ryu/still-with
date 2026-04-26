@@ -10,7 +10,7 @@ Recommended team shape:
 - 1 foundation agent runs first and freezes the project skeleton.
 - 4 feature agents run in parallel after foundation lands.
 - 1 integration steward merges and fixes glue.
-- 2 reviewer agents run after integration and repeat review until zero blockers.
+- The integration steward performs direct product/UX/safety and technical verification after integration and repeats fixes until zero blockers remain.
 
 Peak parallel implementation count: 4 feature agents. This is the safest local worktree split for the current repo.
 
@@ -345,22 +345,22 @@ Required checks:
 - Chat can trigger a motion command.
 - No API key is exposed to the browser.
 
-## Review Agents
+## Direct Verification
 
-Reviewer R1: Product, UX, emotional safety, accessibility, and English copy.
+Perspective R1: Product, UX, emotional safety, accessibility, and English copy.
 
-Reviewer R2: Technical architecture, OpenAI/World Labs pipeline, 3D performance, security, and reliability.
+Perspective R2: Technical architecture, OpenAI/World Labs pipeline, 3D performance, security, and reliability.
 
-Review loop:
+Direct verification loop:
 
 1. Freeze `codex/integration` at a checkpoint commit.
-2. R1 and R2 review independently.
+2. The integration steward reviews the result from R1 and R2 perspectives without reviewer subagents.
 3. Findings are labeled `blocker`, `high`, `medium`, or `low`.
 4. Every blocker is assigned to the original scope owner or integration steward.
 5. Fix blockers.
 6. Rerun relevant tests and browser checks.
-7. Rerun both reviewers.
-8. Repeat until both reviewers report zero blockers.
+7. Repeat direct R1/R2 verification.
+8. Repeat until zero blockers remain.
 
 ## Conflict Control Rules
 
