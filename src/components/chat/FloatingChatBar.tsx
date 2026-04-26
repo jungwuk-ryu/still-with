@@ -1,0 +1,126 @@
+"use client";
+
+import { FormEvent, useState } from "react";
+import type {
+  ConversationTurnResponse,
+  ConversationTurnResult
+} from "@/server/conversation/types";
+import { MicrophoneButton } from "@/components/realtime/MicrophoneButton";
+
+interface FloatingChatBarProps {
+  projectId: string;
+  chatAccessToken: string | null;
+  realtimeAccessToken: string | null;
+  onConversationTurn: (turn: ConversationTurnResult) => void;
+}
+
+export function FloatingChatBar({
+  projectId,
+  chatAccessToken,
+  realtimeAccessToken,
+  onConversationTurn
+}: FloatingChatBarProps) {
+  const [message, setMessage] = useState("");
+  const [status, setStatus] = useState("Ready.");
+  const [assistantLine, setAssistantLine] = useState(
+    "I'm here with you in this memory."
+  );
+  const [isSending, setIsSending] = useState(false);
+  const [currentChatAccessToken, setCurrentChatAccessToken] =
+    useState(chatAccessToken);
+
+  async function sendMessage(nextMessage: string) {
+    const trimmed = nextMessage.trim();
+
+    if (!trimmed || isSending) {
+      return;
+    }
+
+    setIsSending(true);
+    setStatus("Thinking...");
+
+    try {
+      const response = await fetch(`/api/projects/${projectId}/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Still-With-Chat-Token": currentChatAccessToken ?? ""
+        },
+        body: JSON.stringify({ message: trimmed })
+      });
+      const result = (await response.json()) as
+        | ConversationTurnResponse
+        | { error?: string };
+
+      if (!response.ok) {
+        throw new Error(
+          isChatError(result) && result.error
+            ? result.error
+            : "The message could not be sent."
+        );
+      }
+
+      if (isChatError(result)) {
+        throw new Error(result.error || "The message could not be sent.");
+      }
+
+      setAssistantLine(result.assistantMessage);
+      setCurrentChatAccessToken(result.nextChatAccessToken);
+      setStatus(`Motion: ${result.motion.key.replaceAll("_", " ")}`);
+      onConversationTurn(result);
+    } catch (error) {
+      setStatus(
+        error instanceof Error
+          ? error.message
+          : "The message could not be sent."
+      );
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nextMessage = message;
+    setMessage("");
+    await sendMessage(nextMessage);
+  }
+
+  return (
+    <div className="experience-chat-shell">
+      <p className="chat-response" aria-live="polite">
+        {assistantLine}
+      </p>
+      <form className="floating-chat" aria-label="Message input" onSubmit={handleSubmit}>
+        <input
+          value={message}
+          placeholder="Say something gentle..."
+          aria-label="Message"
+          onChange={(event) => setMessage(event.target.value)}
+        />
+        <MicrophoneButton
+          projectId={projectId}
+          accessToken={realtimeAccessToken}
+          disabled={isSending}
+          onVoiceText={(text) => {
+            setMessage("");
+            void sendMessage(text);
+          }}
+          onStatusChange={setStatus}
+        />
+        <button className="button button-primary" type="submit" disabled={isSending}>
+          Send
+        </button>
+      </form>
+      <p className="chat-status" aria-live="polite">
+        {status}
+      </p>
+    </div>
+  );
+}
+
+function isChatError(
+  result: ConversationTurnResponse | { error?: string }
+): result is { error?: string } {
+  return "error" in result;
+}
