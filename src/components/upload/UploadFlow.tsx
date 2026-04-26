@@ -236,7 +236,7 @@ export function UploadFlow() {
         }}
       >
         <span className="drop-zone-title">
-          {photos.length > 0 ? "Add photos" : "Choose photos"}
+          {photos.length > 0 ? "Add photo" : "Choose photos"}
         </span>
         <span className="drop-zone-copy">
           Drag photos here or browse from your device.
