@@ -26,6 +26,8 @@ export interface PetIdentityAnalysisResult {
 export interface ImageSeedInput {
   prompt: string;
   sourceImageUrls?: string[];
+  size?: string;
+  quality?: "low" | "medium" | "high" | "auto";
   context?: ProviderCallContext;
 }
 
@@ -103,8 +105,17 @@ export interface SoraProvider {
     operationId: string,
     context?: ProviderCallContext
   ): Promise<SoraOperation>;
+  downloadMotionClipContent(
+    operationId: string,
+    context?: ProviderCallContext
+  ): Promise<Buffer>;
 }
 
 export interface ProviderOptions {
   apiKey?: string;
+  apiBaseUrl?: string;
+  textModel?: string;
+  imageModel?: string;
+  soraModel?: string;
+  realtimeModel?: string;
 }
