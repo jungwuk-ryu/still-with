@@ -106,6 +106,38 @@ describe("handlePetAnalysisJob", () => {
     expect(bundle?.petProfile?.clarificationRequired).toBe(true);
     expect(nonAnalysisJobs.count).toBe(0);
   });
+
+  it("marks the project failed when final pet analysis attempt throws", async () => {
+    const context = await createTestContext();
+    const result = await createProjectFromUploads(
+      [createImageUpload("one.jpg"), createImageUpload("two.jpg")],
+      context
+    );
+    const job = claimNextGenerationJob({ workerId: "test-worker" }, context.db);
+    const provider = createProvider({
+      async analyzePetIdentity() {
+        throw new Error("provider schema rejected");
+      }
+    });
+
+    await expect(
+      handlePetAnalysisJob(
+        {
+          ...job!,
+          maxAttempts: job!.attempts
+        },
+        {
+          db: context.db,
+          storage: context.storage,
+          openAIProvider: provider
+        }
+      )
+    ).rejects.toThrow("provider schema rejected");
+
+    const bundle = getProjectBundle(result.project.id, context.db);
+    expect(bundle?.project.status).toBe("failed");
+    expect(bundle?.project.errorCode).toBe("PET_ANALYSIS_FAILED");
+  });
 });
 
 async function createTestContext() {

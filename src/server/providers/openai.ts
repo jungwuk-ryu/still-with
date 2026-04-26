@@ -267,12 +267,41 @@ interface OpenAIRealtimeClientSecretResponse {
   };
 }
 
-const PET_IDENTITY_SCHEMA = {
+export const PET_IDENTITY_SCHEMA = {
   type: "object",
   additionalProperties: true,
   properties: {
-    petCandidates: { type: "array" },
-    identityClusters: { type: "array" },
+    petCandidates: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: true,
+        properties: {
+          id: { type: "string" },
+          sourceImageIds: { type: "array", items: { type: "string" } },
+          imageIndexes: { type: "array", items: { type: "number" } },
+          species: { type: ["string", "null"] },
+          name: { type: ["string", "null"] },
+          visibleTraits: { type: "array", items: { type: "string" } },
+          distinctiveMarkings: { type: "array", items: { type: "string" } },
+          confidence: { type: "number" }
+        }
+      }
+    },
+    identityClusters: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: true,
+        properties: {
+          id: { type: "string" },
+          sourceCandidateIds: { type: "array", items: { type: "string" } },
+          visualSummary: { type: ["string", "null"] },
+          distinguishingDetails: { type: "array", items: { type: "string" } },
+          confidence: { type: "number" }
+        }
+      }
+    },
     selectedClusterId: { type: ["string", "null"] },
     selectionConfidence: { type: "number" },
     clarificationRequired: { type: "boolean" },

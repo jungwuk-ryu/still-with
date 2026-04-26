@@ -26,6 +26,11 @@ interface GentleRetryState {
   retryAfterSeconds: number | null;
 }
 
+interface PublicProjectError {
+  code: string | null;
+  message: string;
+}
+
 interface PublicSpacePreviewImage {
   id: string;
   url: string;
@@ -38,6 +43,7 @@ interface PublicProjectStatus {
   status: ProjectStatus;
   stage: PublicLoadingStage;
   retry: GentleRetryState | null;
+  error: PublicProjectError | null;
   nextRoute: string | null;
   canEnter: boolean;
   needsClarification: boolean;
@@ -136,6 +142,7 @@ export function LoadingProgress({
           "Finding the moments, colors, and places that appear in your photos."
       },
       retry: null,
+      error: null,
       canEnter: false,
       nextRoute: null,
       spacePreviewImages: [],
@@ -171,11 +178,12 @@ export function LoadingProgress({
           <span />
           <span />
         </div>
-        <p className="eyebrow">A gentle pause</p>
-        <h1 id="loading-title">This needs a little more time</h1>
+        <p className="eyebrow">Generation failed</p>
+        <h1 id="loading-title">This memory could not be generated.</h1>
         <p className="panel-subtitle">
-          The memory could not be prepared just yet. You can begin again when
-          you&apos;re ready.
+          {visibleStatus.error?.message ??
+            "Something went wrong while preparing it."} You can begin again
+          with the photos you want to use.
         </p>
         <Link className="button button-secondary" href="/">
           Start again

@@ -31,6 +31,11 @@ export interface GentleRetryState {
   retryAfterSeconds: number | null;
 }
 
+export interface PublicProjectError {
+  code: string | null;
+  message: string;
+}
+
 export interface PublicSpacePreviewImage {
   id: string;
   url: string;
@@ -43,6 +48,7 @@ export interface PublicProjectStatus {
   status: ProjectStatus;
   stage: PublicLoadingStage;
   retry: GentleRetryState | null;
+  error: PublicProjectError | null;
   nextRoute: string | null;
   canEnter: boolean;
   needsClarification: boolean;
@@ -96,6 +102,7 @@ export function getPublicProjectStatus(
             retryAfterSeconds: null
           }
         : null,
+    error: getPublicProjectError(bundle.project),
     nextRoute: getNextRoute(bundle.project),
     canEnter: bundle.project.status === "ready",
     needsClarification: bundle.project.status === "clarification_required",
@@ -103,6 +110,17 @@ export function getPublicProjectStatus(
     spacePreviewImages: getSpacePreviewImages(bundle.project.id, db),
     selectedPetId: bundle.project.selectedPetId,
     updatedAt: bundle.project.updatedAt
+  };
+}
+
+function getPublicProjectError(project: Project): PublicProjectError | null {
+  if (project.status !== "failed") {
+    return null;
+  }
+
+  return {
+    code: project.errorCode,
+    message: "Generation failed before the memory space could be prepared."
   };
 }
 

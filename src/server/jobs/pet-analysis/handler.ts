@@ -43,13 +43,32 @@ export async function handlePetAnalysisJob(
     payload.imageUrls,
     storage
   );
-  const result = await provider.analyzePetIdentity({
-    imageUrls: providerImageUrls,
-    clarificationAnswer: payload.clarificationAnswer,
-    context: {
-      projectId: job.projectId
+  let result;
+
+  try {
+    result = await provider.analyzePetIdentity({
+      imageUrls: providerImageUrls,
+      clarificationAnswer: payload.clarificationAnswer,
+      context: {
+        projectId: job.projectId
+      }
+    });
+  } catch (error) {
+    if (isFinalJobAttempt(job)) {
+      updateProjectLifecycle(
+        job.projectId,
+        {
+          status: "failed",
+          errorCode: "PET_ANALYSIS_FAILED",
+          errorMessage:
+            error instanceof Error ? error.message : "Pet analysis failed."
+        },
+        db
+      );
     }
-  });
+
+    throw error;
+  }
 
   if (result.clarificationRequired || !result.petProfile) {
     const existingProfile = getProjectPetProfile(job.projectId, db);
@@ -104,6 +123,10 @@ export async function handlePetAnalysisJob(
     petProfileId: petProfile.id,
     selectionConfidence: petProfile.selectionConfidence
   };
+}
+
+function isFinalJobAttempt(job: { attempts: number; maxAttempts: number }): boolean {
+  return job.maxAttempts <= 1 || job.attempts >= job.maxAttempts;
 }
 
 function coercePayload(payload: JsonValue): PetAnalysisJobPayload {
