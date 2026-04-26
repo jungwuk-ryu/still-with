@@ -50,6 +50,23 @@ export function requireOpenAIApiKey(): string {
   return apiKey;
 }
 
+export function getGeminiApiKey(): string | null {
+  return process.env.GEMINI_API_KEY?.trim() || null;
+}
+
+export function requireGeminiApiKey(): string {
+  const apiKey = getGeminiApiKey();
+
+  if (!apiKey) {
+    throw new MissingEnvironmentVariableError(
+      "GEMINI_API_KEY",
+      "GEMINI_API_KEY is required when calling the Gemini provider."
+    );
+  }
+
+  return apiKey;
+}
+
 export function requireWorldLabsApiKey(): string {
   const apiKey = process.env.WORLDLABS_API_KEY?.trim();
 

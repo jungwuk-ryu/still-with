@@ -13,6 +13,8 @@ export function createSoraProvider(options: ProviderOptions = {}): SoraProvider 
 }
 
 class SoraProviderAdapter implements SoraProvider {
+  readonly providerName = "sora" as const;
+
   constructor(private readonly options: ProviderOptions) {}
 
   async createMotionClip(input: SoraMotionInput): Promise<SoraOperation> {

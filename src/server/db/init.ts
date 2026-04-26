@@ -15,6 +15,7 @@ function ensureProjectColumns(db: Database.Database): void {
 function ensureMotionClipColumns(db: Database.Database): void {
   ensureColumns(db, "motion_clips", [
     ["provider_operation_id", "TEXT"],
+    ["provider_name", "TEXT"],
     ["provider_status", "TEXT"],
     ["provider_error_message", "TEXT"],
     ["postprocess_json", "TEXT"]

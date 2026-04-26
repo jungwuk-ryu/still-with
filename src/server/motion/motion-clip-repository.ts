@@ -19,6 +19,7 @@ interface MotionClipRow {
   loopable: number;
   quality_score: number | null;
   provider_operation_id: string | null;
+  provider_name: string | null;
   provider_status: string | null;
   provider_error_message: string | null;
   postprocess_json: string | null;
@@ -43,6 +44,7 @@ export interface UpsertMotionClipInput {
   loopable?: boolean;
   qualityScore?: number | null;
   providerOperationId?: string | null;
+  providerName?: string | null;
   providerStatus?: string | null;
   providerErrorMessage?: string | null;
   postprocess?: MotionClip["postprocess"];
@@ -59,6 +61,7 @@ export interface MotionClipPatch {
   loopable?: boolean;
   qualityScore?: number | null;
   providerOperationId?: string | null;
+  providerName?: string | null;
   providerStatus?: string | null;
   providerErrorMessage?: string | null;
   postprocess?: MotionClip["postprocess"];
@@ -89,6 +92,7 @@ export function upsertMotionClipRecord(
         loopable: input.loopable,
         qualityScore: input.qualityScore,
         providerOperationId: input.providerOperationId,
+        providerName: input.providerName,
         providerStatus: input.providerStatus,
         providerErrorMessage: input.providerErrorMessage,
         postprocess: input.postprocess,
@@ -115,6 +119,7 @@ export function upsertMotionClipRecord(
     loopable: input.loopable ?? false,
     qualityScore: input.qualityScore ?? null,
     providerOperationId: input.providerOperationId ?? null,
+    providerName: input.providerName ?? null,
     providerStatus: input.providerStatus ?? null,
     providerErrorMessage: input.providerErrorMessage ?? null,
     postprocess: input.postprocess ?? null,
@@ -126,14 +131,14 @@ export function upsertMotionClipRecord(
       id, project_id, pet_profile_id, motion_key, from_state, to_state,
       prompt, keyframe_image_urls_json, raw_video_url, processed_video_url,
       alpha_video_url, duration_ms, loopable, quality_score,
-      provider_operation_id, provider_status, provider_error_message,
+      provider_operation_id, provider_name, provider_status, provider_error_message,
       postprocess_json, status,
       created_at, updated_at
     ) VALUES (
       @id, @projectId, @petProfileId, @motionKey, @fromState, @toState,
       @prompt, @keyframeImageUrlsJson, @rawVideoUrl, @processedVideoUrl,
       @alphaVideoUrl, @durationMs, @loopable, @qualityScore,
-      @providerOperationId, @providerStatus, @providerErrorMessage,
+      @providerOperationId, @providerName, @providerStatus, @providerErrorMessage,
       @postprocessJson, @status,
       @createdAt, @updatedAt
     )`
@@ -187,6 +192,8 @@ export function updateMotionClipRecord(
       patch.providerOperationId === undefined
         ? current.providerOperationId
         : patch.providerOperationId,
+    providerName:
+      patch.providerName === undefined ? current.providerName : patch.providerName,
     providerStatus:
       patch.providerStatus === undefined
         ? current.providerStatus
@@ -219,6 +226,7 @@ export function updateMotionClipRecord(
          loopable = @loopable,
          quality_score = @qualityScore,
          provider_operation_id = @providerOperationId,
+         provider_name = @providerName,
          provider_status = @providerStatus,
          provider_error_message = @providerErrorMessage,
          postprocess_json = @postprocessJson,
@@ -291,6 +299,7 @@ function mapMotionClipRow(row: MotionClipRow): MotionClip {
     loopable: row.loopable === 1,
     qualityScore: row.quality_score,
     providerOperationId: row.provider_operation_id,
+    providerName: row.provider_name,
     providerStatus: row.provider_status,
     providerErrorMessage: row.provider_error_message,
     postprocess: parsePostprocess(row.postprocess_json),

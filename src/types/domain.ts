@@ -127,6 +127,7 @@ export interface MotionClip {
   loopable: boolean;
   qualityScore: number | null;
   providerOperationId: string | null;
+  providerName: string | null;
   providerStatus: string | null;
   providerErrorMessage: string | null;
   postprocess: MotionClipPostprocess | null;

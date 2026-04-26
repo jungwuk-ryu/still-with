@@ -20,6 +20,7 @@ export interface MotionClipManifestEntry {
   chromaKeyColor: "green" | "blue" | null;
   shaderUniforms: MotionClipPostprocess["shaderUniforms"] | null;
   providerOperationId: string | null;
+  providerName: string | null;
   providerStatus: string | null;
   providerErrorMessage: string | null;
   qualityScore: number | null;
@@ -69,6 +70,7 @@ export function buildMotionClipManifest(
       chromaKeyColor: clip.postprocess?.chromaKeyColor ?? null,
       shaderUniforms: clip.postprocess?.shaderUniforms ?? null,
       providerOperationId: clip.providerOperationId,
+      providerName: clip.providerName,
       providerStatus: clip.providerStatus,
       providerErrorMessage: clip.providerErrorMessage,
       qualityScore: clip.qualityScore,

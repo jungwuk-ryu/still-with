@@ -99,6 +99,7 @@ CREATE TABLE IF NOT EXISTS motion_clips (
   loopable INTEGER NOT NULL DEFAULT 0,
   quality_score REAL,
   provider_operation_id TEXT,
+  provider_name TEXT,
   provider_status TEXT,
   provider_error_message TEXT,
   postprocess_json TEXT,
