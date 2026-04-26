@@ -2,54 +2,56 @@
 
 ## 1. Visual Theme & Atmosphere
 
-Luma's design language feels like a polished event venue after the lights go down: a near-black canvas, soft glassy surfaces, bright photography, and a small number of celebratory color moments. The product is dark-mode-native on public pages, using `rgb(19,21,23)` as the deepest base and `#212325` / `#333537` as the surface ladder. Text, icons, event covers, and CTAs emerge from that darkness with high contrast but little visual noise.
+Luma's light theme feels like a clean event invitation laid over a softly lit product canvas. The base is white, the typography is crisp near-black, and the product's warmth comes from restrained gradients, event imagery, and small cranberry accents rather than from heavy decoration. The interface is bright, calm, and utilitarian, but it keeps Luma's celebratory mood through colorful event covers, category icons, city badges, and the occasional rainbow brand moment.
 
-The brand personality is "delightful utility." The landing page opens with an oversized product phone video and a rainbow-gradient phrase, while the discovery and pricing pages are much more operational: event rows, category tiles, pricing cards, checklists, and segmented controls. This balance matters. Luma can be playful at the brand moment, but the interface itself stays calm, scan-friendly, and compact.
+The light theme uses `#ffffff` as the primary canvas, `#f7f8f9` and `#ebeced` as subtle surface steps, and `rgb(19,21,23)` as the dominant text color. Luma's public pages are deliberately simple: a quiet nav, large direct headings, compact event rows, rounded cards, and a consistent 8px control radius. On light backgrounds, depth comes from translucent white cards, faint black-opacity dividers, and low-opacity stacked shadows.
 
-The design system is built around Inter/system typography, rounded-but-not-cute geometry, faint borders, and translucent cards. Surfaces often use low-opacity white on dark backgrounds, `blur(16px)` backdrops, and subtle stacked shadows. Event artwork is the main visual content: square cover thumbnails, calendar avatars, colorful circular city icons, and category illustrations carry most of the color.
+The brand personality is "delightful utility." Landing and creation surfaces can be playful: large product phone media, clipped gradient text, soft abstract color fields. Discovery, pricing, auth, and dashboard-like pages should become much more operational: list rows, cards, segmented controls, checklists, and tables. Keep the first impression friendly, then let the UI get out of the way.
 
 **Key Characteristics:**
-- Dark-mode-native event platform aesthetic: `rgb(19,21,23)` base, `#212325` cards, `#333537` elevated panels
+- Light-first event platform aesthetic: white canvas, soft gray surfaces, crisp near-black text
 - Inter/system font stack with weight 500 as the dominant UI voice and weight 600 as the maximum emphasis
-- Bright cranberry brand accent (`#f31a7c`) for Plus, brand links, and primary paid CTAs
+- Cranberry brand accent (`#f31a7c`) for Plus, brand links, upgrade CTAs, and small emphasis
 - Rainbow brand moments: blue -> purple -> magenta -> pink -> coral -> orange gradients, used sparingly
-- White primary CTAs on dark hero/login surfaces; cranberry CTAs for paid/upgrade actions
+- Black primary CTAs on light hero/product surfaces; cranberry CTAs for paid/upgrade actions
 - 8px standard radius, 12px card radius, 16px large radius, 24px squircle/card-shell radius
-- Event cover images and community avatars as primary content, not decoration
-- Faint borders: `rgba(255,255,255,0.04)` to `rgba(255,255,255,0.16)` on dark surfaces
-- Compact content rhythm: event rows, category grids, pricing checklist cards, and horizontally scrollable mobile rows
+- Event cover images and community avatars provide the main color and content personality
+- Faint borders: `rgba(19,21,23,0.08)` to `rgba(19,21,23,0.16)` on light surfaces
+- Translucent white cards and subtle shadows rather than heavy outlines
 - Navigation is quiet: logo, current local time, "Explore Events" link, and pill-shaped sign-in button
 
 ## 2. Color Palette & Roles
 
-### Core Dark Surfaces
-- **Luma Black** (`rgb(19,21,23)` / `#131517`): The primary page background in dark mode. Used for landing, discover, pricing, and sign-in.
-- **Card Black** (`#212325`): Default card and elevated surface in dark mode. Used for pricing cards, sign-in panel, category tiles, and content cards.
-- **Panel Charcoal** (`#333537`): Higher-elevation panels, secondary buttons, tables, and selected segmented controls.
-- **Slate Gray** (`#535557`): Hover fills, inactive button surfaces, and subdued panel separators.
+### Core Light Surfaces
+- **Canvas White** (`#ffffff`): Primary page background. Use for landing, discover, pricing, auth, and general app surfaces in light mode.
+- **Soft Surface** (`#f7f8f9`): Secondary background for subtle section separation, hover wells, and low-priority panels.
+- **Tertiary Surface** (`#ebeced`): Higher-contrast gray fill for selected segmented controls, disabled controls, and table wells.
+- **Border Gray** (`#d2d4d7`): Stronger structural borders when black-opacity borders are not enough.
+- **Translucent White** (`rgba(255,255,255,0.80)`): Default glassy card surface over gradients, imagery, or abstract background fields.
 
-### Light & Text
-- **Primary White** (`#ffffff`): Main text on dark backgrounds and primary white CTA fill.
-- **Soft White** (`#f7f8f9`): Near-white surface/text token; useful when pure white feels too sharp.
-- **Secondary Text** (`rgba(255,255,255,0.79)` / approx `#d2d4d7`): Body copy, feature descriptions, pricing notes.
-- **Tertiary Text** (`rgba(255,255,255,0.50)` / approx `#939597`): Metadata, event times, calendar descriptions, footer links.
-- **Quaternary Text** (`rgba(255,255,255,0.32)` / approx `#737577`): Placeholder copy, low-priority labels, disabled-looking metadata.
+### Text & Content
+- **Primary Ink** (`rgb(19,21,23)` / `#131517`): Primary text, headings, icons, and black CTA background.
+- **Secondary Text** (`rgba(19,21,23,0.64)` / approx `#737577`): Body copy, descriptions, pricing notes.
+- **Tertiary Text** (`rgba(19,21,23,0.36)` / approx `#b3b5b7`): Metadata, event times, calendar descriptions, footer links.
+- **Quaternary Text** (`rgba(19,21,23,0.20)` / approx `#dee0e2`): Disabled-looking labels, placeholders, inactive UI.
+- **White Text** (`#ffffff`): Text on black, cranberry, or image-overlay controls.
 
 ### Brand & Accent
-- **Cranberry** (`#f31a7c`): Primary brand accent in light tokens. Use for brand text, Plus CTAs, API links, active accents, and small emphasis.
-- **Cranberry Dark Mode** (`#f98dbe` / `#f6539d`): Softer cranberry variants for dark-mode text and small labels.
-- **Purple** (`#682fff`, dark mode `#b596ff`): Secondary brand/accent color, especially in gradients and category/event visuals.
-- **Blue** (`#287eff`, dark mode `#76adff`): Link-like, chat-like, or discovery accent. Use cautiously outside gradients.
-- **Orange** (`#f8712b`, dark mode `#fba67a`): Warm celebratory accent for gradient endpoints and event/category icon systems.
+- **Cranberry** (`#f31a7c`): Primary brand accent in light mode. Use for brand text, Luma Plus, upgrade CTAs, selected highlights, and API/important links.
+- **Cranberry Active** (`#d5176d`): Pressed/hover state for cranberry buttons and stronger emphasis.
+- **Cranberry Pale** (`rgba(243,26,124,0.133)`): Soft badges, selected states, and background tints.
+- **Purple** (`#682fff`): Secondary accent for gradients, category/event visuals, and occasional branded illustration.
+- **Blue** (`#287eff`): Discovery/category accent, link-like states, and gradient starts.
+- **Orange** (`#f8712b`): Warm celebratory accent for gradient endpoints and local/category icon systems.
 
 ### Semantic Colors
-- **Success Green** (`#3cbd2c`, dark mode `#77d86b`): Success states, check confirmations, accepted/registered indicators.
-- **Warning Yellow** (`#d69712`, dark mode `#f2ca77`): Warning states and low-frequency status callouts.
-- **Error Red** (`#ed2b32`, dark mode `#ff766d`): Validation errors, destructive states, failed payments.
+- **Success Green** (`#3cbd2c`): Success states, accepted/registered indicators, confirmations.
+- **Warning Yellow** (`#d69712`): Warning states and low-frequency status callouts.
+- **Error Red** (`#ed2b32`): Validation errors, destructive states, failed payments.
 
 ### Gradients
 - **Hero Text Gradient**: `radial-gradient(circle at 0 0, #099ef1 0%, #6863f8 18.82%, #d84ffa 32.6%, #f058c5 52.83%, #ff4f90 68.03%, #ff6558 87.66%, #ff891f 100%)`
-- **Dark Brand Gradient**: `linear-gradient(-45deg, #d118ff 0%, #f32861 51.59%, #f8245d 51.6%, #ffbe19 100.05%)`
+- **Light Brand Gradient**: `linear-gradient(-45deg, #8a18a8 0%, #ce2756 51.59%, #cf2a55 51.6%, #e7a90d 100.05%)`
 - **Footer/Create Gradient**: `linear-gradient(45deg, #6e2fe3, #0cabf7, #e27417, #1f6f05)`
 
 Use gradients only for brand moments, hero text, footer calls to action, or small celebratory highlights. Do not turn whole cards or page backgrounds into rainbow surfaces.
@@ -90,14 +92,14 @@ Luma's typography is product-first. It uses system/Inter proportions, compact li
 
 ### Buttons
 
-**White Primary CTA** ("Create Your First Event", "Get Started", "Continue with Email")
-- Background: `#ffffff`
-- Text: `#131517` or `#000000`
+**Black Primary CTA** ("Create Your First Event", "Get Started", "Continue")
+- Background: `#131517`
+- Text: `#ffffff`
 - Height: 44-52px depending on context
 - Padding: 12px 24px
 - Radius: 8px or full pill for nav-sized actions
 - Weight: 500
-- Hover: slightly dim or shift to `#f7f8f9`; keep the high-contrast white block
+- Hover: shift to `#333537` or reduce opacity slightly; keep the high-contrast black block
 
 **Cranberry Primary CTA** ("Get Luma Plus")
 - Background: `#f31a7c`
@@ -107,90 +109,91 @@ Luma's typography is product-first. It uses system/Inter proportions, compact li
 - Hover/active: `#d5176d`
 - Use only for paid upgrade, brand-critical, or high-commitment actions
 
-**Dark Secondary Button**
-- Background: `#333537` or `rgba(255,255,255,0.08)`
-- Text: Secondary Text
+**Light Secondary Button**
+- Background: `#f7f8f9` or `rgba(19,21,23,0.04)`
+- Text: Primary Ink
+- Border: optional `1px solid rgba(19,21,23,0.08)`
 - Radius: 8px or pill
 - Use for OAuth sign-in, passkey, neutral toggles, and secondary actions
 
 **Segmented Control**
-- Outer background: `rgba(255,255,255,0.08)` or `#333537`
-- Selected segment: `#535557` / `rgba(255,255,255,0.16)`
-- Text: selected `#ffffff`, unselected tertiary
+- Outer background: `rgba(19,21,23,0.08)` or `#ebeced`
+- Selected segment: `#ffffff` with small shadow or `#d2d4d7` when the shell is very light
+- Text: selected Primary Ink, unselected Secondary/Tertiary Text
 - Radius: 9999px
 - Compact padding: 6px 14px
 
 **Icon / Link Button**
 - Background: transparent by default
-- Icon/text color: tertiary; hover to primary
+- Icon/text color: Secondary or Tertiary Text; hover to Primary Ink
 - Motion: arrow icons translate by 1px on hover
 - Use for "Explore Events" external-link actions, footer icons, and card affordances
 
 ### Cards & Containers
 
 **Content Card**
-- Background: `rgba(255,255,255,0.04)` in dark mode; `rgba(255,255,255,0.80)` in light mode
-- Border: `1px solid rgba(255,255,255,0.04)` default, `rgba(255,255,255,0.16)` hover
+- Background: `rgba(255,255,255,0.80)` or `#ffffff`
+- Border: `1px solid #ffffff` over tinted backgrounds, or `1px solid rgba(19,21,23,0.08)` on plain white
 - Radius: 12px; large card shells may use 16px
 - Backdrop: `blur(16px)` when sitting over gradients or imagery
-- Hover: border brightens, shadow may softly deepen; avoid strong lift
+- Hover: border shifts to `rgba(19,21,23,0.16)`, shadow softly deepens
 
 **Event Row**
 - Layout: 80px square image on left, text stack on right
 - Cover radius: 8px
 - Padding: 12px 16px
 - Gap: 16px
-- Divider: 1px `rgba(255,255,255,0.08)` offset after the image
+- Divider: 1px `rgba(19,21,23,0.08)` offset after the image
 - Hover: row background becomes `rgba(147,149,151,0.133)` or cover scales to `1.05`
-- Title: 16-18px weight 500, 2-line clamp
-- Metadata: time first, location second; use tertiary text
+- Title: 16-18px weight 500, 2-line clamp, Primary Ink
+- Metadata: time first, location second; use Tertiary Text
 
 **Category Tile**
-- Background: `#212325` / `rgba(255,255,255,0.04)`
-- Border: faint 1px white-opacity border
+- Background: `#ffffff` or `rgba(255,255,255,0.80)`
+- Border: `1px solid rgba(19,21,23,0.08)`
 - Radius: 12px
 - Layout: icon at 40-48px, category name, event count
 - Icon: colorful image or line icon with category tint; do not monochrome these
 - Grid: `repeat(auto-fill, minmax(220px-240px, 1fr))`
 
 **Calendar Card**
-- Background: `#212325`
-- Border: faint 1px white-opacity border
+- Background: `#ffffff`
+- Border: `1px solid rgba(19,21,23,0.08)`
 - Radius: 12px
 - Padding: 16px
 - Avatar: 48px square/circle, top-left
-- Subscribe pill: top-right, dark secondary button
-- Description: 2-line clamp in tertiary text
+- Subscribe pill: top-right, light secondary button
+- Description: 2-line clamp in Secondary/Tertiary Text
 
 **Pricing Card**
-- Background: `#212325`
-- Border: `1px solid rgba(255,255,255,0.08)`
+- Background: `rgba(255,255,255,0.80)` or `#ffffff`
+- Border: `1px solid rgba(19,21,23,0.08)`
 - Radius: 12px
 - Padding: 24px
-- Check icons: white circles/checks at 14-16px
+- Check icons: Primary Ink or cranberry circles/checks at 14-16px
 - Dividers: faint horizontal rules between feature groups
-- Free plan CTA: white; Plus plan CTA: cranberry
+- Free plan CTA: black; Plus plan CTA: cranberry
 
 **Sign-In Panel**
 - Width: ~430-460px
-- Background: `#212325`
-- Border: `1px solid rgba(255,255,255,0.16)`
+- Background: `rgba(255,255,255,0.86)` or `#ffffff`
+- Border: `1px solid rgba(19,21,23,0.08)`
 - Radius: 24px
 - Padding: 32px
-- Top icon: circular gray well, 64px
-- Inputs: dark background, subtle border, 8px radius
-- Primary action: full-width white button
+- Top icon: circular soft-gray well, 64px
+- Inputs: white or `#f7f8f9` background, subtle border, 8px radius
+- Primary action: full-width black button
 
 ### Inputs & Forms
 
 **Text Input**
-- Background: `#131517` or `rgba(0,0,0,0.24)` on dark surfaces
-- Border: `1px solid #333537`
-- Text: Primary White
-- Placeholder: tertiary text
+- Background: `#ffffff` or `#f7f8f9`
+- Border: `1px solid #d2d4d7`
+- Text: Primary Ink
+- Placeholder: Tertiary Text
 - Radius: 8px
 - Padding: 12px 14px
-- Focus: white or brand-tinted outline; avoid thick glow
+- Focus: border switches to Primary Ink or cranberry; avoid thick glow
 
 **Label Row**
 - Label left, secondary action right ("Use Phone Number")
@@ -206,15 +209,15 @@ Luma's typography is product-first. It uses system/Inter proportions, compact li
 
 **Global Nav**
 - Height: ~52px
-- Background: transparent over page background; sticky pages may use backdrop blur
+- Background: transparent over page background; sticky pages may use translucent white and backdrop blur
 - Backdrop: `blur(16px)` when sticky
-- Left: Luma star or wordmark, tertiary/soft white
+- Left: Luma star or wordmark in Primary Ink or Tertiary Text
 - Right: local time, "Explore Events" external-link action, Sign In pill
-- Text: 14px, weight 500, tertiary by default, primary on hover
-- Sign In: dark translucent pill on public dark pages
+- Text: 14px, weight 500, Secondary/Tertiary Text by default, Primary Ink on hover
+- Sign In: light gray or black pill depending on page importance; prefer black when it is the main action
 
 **Footer**
-- Top border: `1px solid rgba(255,255,255,0.08)`
+- Top border: `1px solid rgba(19,21,23,0.08)`
 - Logo + links left, app/social icons right
 - Secondary links below on landing and pricing
 - "Host your event with Luma" external-link copy may use a clipped gradient text treatment
@@ -224,16 +227,16 @@ Luma's typography is product-first. It uses system/Inter proportions, compact li
 - **Landing phone visual**: large phone video/mockup, 620px wide on desktop; it can dominate the right half of the hero.
 - **Event covers**: square, 80px in event rows, 8px radius, `object-fit: cover`.
 - **Calendar avatars**: 48px, rounded square/circle depending on source.
-- **Category icons**: bright icon images on transparent/dark tiles; preserve their native color.
+- **Category icons**: bright icon images on transparent/light tiles; preserve their native color.
 - **City icons**: 40px circular colored tokens with white pictograms.
-- **Dark image adjustment**: public CSS brightens images in dark theme; use `filter: brightness(1.15-1.25)` only when assets feel too dim.
+- **Light image rule**: do not brighten images. Let event artwork retain natural contrast on the white page.
 
 ### Signature Components
 
 **Rainbow Hero Word**
 - Use only on the final phrase or one short word group.
 - Clip the radial gradient to text with transparent fill.
-- Surround it with otherwise white headline text.
+- Surround it with otherwise Primary Ink headline text.
 
 **Discover Event Grid**
 - Desktop: 2 columns of event rows, each row 80px cover + text.
@@ -242,7 +245,7 @@ Luma's typography is product-first. It uses system/Inter proportions, compact li
 
 **Pricing Matrix**
 - Two large cards side by side, then add-on table and enterprise strip.
-- Dark grid-pattern background is acceptable, but keep it low-contrast.
+- Light abstract background or very subtle grid texture is acceptable, but keep it low-contrast.
 - Use cranberry only for the Plus plan and related links.
 
 ## 5. Layout Principles
@@ -251,7 +254,7 @@ Luma's typography is product-first. It uses system/Inter proportions, compact li
 - **Base unit**: 4px with 8px as the practical rhythm
 - **Common scale**: 4px, 6px, 8px, 10px, 12px, 16px, 18px, 20px, 24px, 32px, 48px, 64px
 - **Container padding**: 16px mobile, 24px tablet, 32px desktop when inside card-heavy pages
-- **Landing hero**: large vertical breathing room, 80vh minimum, but footer should remain discoverable after the hero
+- **Landing hero**: large vertical breathing room, 80vh minimum, but footer or next section should remain discoverable after the hero
 - **Card padding**: 16px for content cards, 24px for pricing/sign-in cards, 32px for large modal-like panels
 - **Event row padding**: 12px 16px
 - **Grid gap**: 16px standard; 12px on tablet/mobile
@@ -265,7 +268,7 @@ Luma's typography is product-first. It uses system/Inter proportions, compact li
 - **Pricing**: centered title, segmented control, two-column pricing cards, full-width add-on/enterprise rows below
 
 ### Whitespace Philosophy
-- **Dark space is the canvas.** Empty black space is part of the atmosphere; do not fill every gap with borders or cards.
+- **White space is the canvas.** Empty white space should feel clean and editorial, not unfinished.
 - **Density belongs inside sections.** Event rows, category tiles, pricing features, and city lists can be compact because section spacing separates them.
 - **Brand moments need room.** The landing hero, pricing title, and sign-in panel should have calm negative space around them.
 - **Let real content add color.** Event covers, avatars, category icons, and city icons should carry most chroma.
@@ -283,42 +286,43 @@ Luma's typography is product-first. It uses system/Inter proportions, compact li
 
 | Level | Treatment | Use |
 |-------|-----------|-----|
-| Level 0 | `#131517` background, no shadow | Page canvas |
-| Level 1 | `rgba(255,255,255,0.04)` surface + same-color border | Category tiles, low cards |
-| Level 2 | `#212325` surface + `1px solid rgba(255,255,255,0.08)` | Pricing cards, sign-in panel, calendar cards |
-| Level 3 | `#333537` surface or `rgba(255,255,255,0.16)` border | Tables, selected controls, elevated sub-panels |
-| Hover | Border to `rgba(255,255,255,0.16)` + optional `0 28px 17px rgba(0,0,0,0.01)` stack | Hoverable content cards |
-| Floating | `0 2px 3px rgba(0,0,0,.25), 0 4px 7px rgba(0,0,0,.30), 0 8px 14px rgba(0,0,0,.35), 0 17px 29px rgba(0,0,0,.40)` | Menus, popovers, overlays in dark mode |
-| Modal | `0 0 0 1px var(--opacity-8), 0 3px 3px rgba(0,0,0,.1), 0 8px 7px rgba(0,0,0,.13), 0 17px 14px rgba(0,0,0,.17), 0 35px 29px rgba(0,0,0,.22), 0 -4px 4px rgba(0,0,0,.04) inset` | Dialogs, auth panels, command-like modals |
+| Level 0 | `#ffffff` background, no shadow | Page canvas |
+| Level 1 | `#f7f8f9` surface or faint black-opacity hover fill | Hover rows, low-priority panels |
+| Level 2 | `#ffffff` or `rgba(255,255,255,0.80)` + `1px solid rgba(19,21,23,0.08)` | Cards, category tiles, inputs |
+| Level 3 | `#ebeced` or stronger `rgba(19,21,23,0.16)` border | Selected controls, tables, sub-panels |
+| Hover | Border to `rgba(19,21,23,0.16)` + soft light shadow | Hoverable content cards |
+| Floating | `0 1.6px 3px rgba(0,0,0,.02), 0 4.2px 7px rgba(0,0,0,.03), 0 8px 14px rgba(0,0,0,.04), 0 17.5px 29px rgba(0,0,0,.05), 0 48px 80px rgba(0,0,0,.06)` | Menus, popovers, floating panels |
+| Modal | `0 0 0 1px rgba(19,21,23,0.08), 0 3px 3px rgba(0,0,0,.03), 0 8px 7px rgba(0,0,0,.04), 0 17px 14px rgba(0,0,0,.05), 0 35px 29px rgba(0,0,0,.06), 0 -4px 4px rgba(0,0,0,.04) inset` | Dialogs, auth panels, command-like modals |
 
 ### Shadow Philosophy
-Luma's depth is mostly surface and border based. The first read of hierarchy comes from dark luminance steps (`#131517` -> `#212325` -> `#333537`), then from faint borders. Shadows exist, but they are soft and low-contrast; they should never turn cards into floating paper. On top of image/gradient backgrounds, use `backdrop-filter: blur(16px)` and translucent fills to create glassy containment.
+Luma's light depth is soft, layered, and low contrast. The first read of hierarchy comes from surface steps (`#ffffff` -> `#f7f8f9` -> `#ebeced`), then from faint black-opacity borders. Shadows should feel ambient rather than dramatic. Cards should feel gently placed on the page, not floating above it.
 
 ### Decorative Depth
 - Landing page background may use large blurred SVG gradients at very low opacity.
 - Pricing page may use a subtle grid/noise background; it should be barely visible.
 - Avoid bright glows around cards. Reserve glow-like color for hero media and gradient text.
+- Use `backdrop-filter: blur(16px)` only when the card sits over a gradient, photo, or translucent sheet.
 
 ## 7. Do's and Don'ts
 
 ### Do
-- Build dark-mode-first with `#131517` as the base and `#212325` as the primary card surface.
+- Build light-mode-first with `#ffffff` as the base and `#f7f8f9` / `#ebeced` as supporting surfaces.
 - Use Inter/system typography with weights 400, 500, and 600 only.
-- Use white CTAs for neutral creation/sign-in actions and cranberry CTAs for Plus/upgrade actions.
+- Use black CTAs for neutral creation/sign-in actions and cranberry CTAs for Plus/upgrade actions.
 - Let event artwork, category icons, and avatars provide most of the color.
 - Keep event rows compact and scannable: time, title, location, cover image.
-- Use faint white-opacity borders instead of heavy outlines.
+- Use faint black-opacity borders instead of heavy gray outlines.
 - Use 8px radius for controls and 12px radius for cards.
-- Use `blur(16px)` translucent surfaces when cards sit over gradients or hero visuals.
+- Use translucent white surfaces when cards sit over gradients or hero visuals.
 - Keep nav quiet: small logo, muted links, local time, pill sign-in.
 - Clamp long titles and descriptions to prevent cards from becoming uneven.
 
 ### Don't
 - Don't make the whole interface cranberry, purple, or gradient. Luma's colorful moments are accents, not the canvas.
+- Don't default to dark panels on light pages unless representing a phone/product preview.
 - Don't use heavy font weights like 700/800; Luma's confidence comes from spacing and contrast, not boldness.
 - Don't add marketing-card clutter to discovery surfaces; event discovery should feel like a functional agenda.
-- Don't use large white page sections inside the dark public UI unless intentionally switching to light mode.
-- Don't overuse shadows on dark backgrounds; use surface luminance and borders first.
+- Don't overuse shadows. In light theme, use surface steps and faint borders first.
 - Don't replace event covers or category icons with abstract illustrations; real community content is the visual language.
 - Don't make buttons square. Luma's controls are gently rounded or pill-shaped.
 - Don't use all-caps labels except tiny badges such as "LIVE".
@@ -362,41 +366,45 @@ Luma's depth is mostly surface and border based. The first read of hierarchy com
 ## 9. Agent Prompt Guide
 
 ### Quick Color Reference
-- Page Background: Luma Black (`#131517`)
-- Card Background: Card Black (`#212325`)
-- Elevated Surface: Panel Charcoal (`#333537`)
-- Primary Text: White (`#ffffff`)
-- Secondary Text: `rgba(255,255,255,0.79)`
-- Tertiary Text: `rgba(255,255,255,0.50)`
-- Muted Text: `rgba(255,255,255,0.32)`
+- Page Background: Canvas White (`#ffffff`)
+- Soft Background: Soft Surface (`#f7f8f9`)
+- Tertiary Surface: `#ebeced`
+- Card Background: White / Translucent White (`rgba(255,255,255,0.80)`)
+- Primary Text: Primary Ink (`#131517`)
+- Secondary Text: `rgba(19,21,23,0.64)`
+- Tertiary Text: `rgba(19,21,23,0.36)`
+- Muted Text: `rgba(19,21,23,0.20)`
 - Brand Accent: Cranberry (`#f31a7c`)
-- Brand Accent Dark: Soft Cranberry (`#f98dbe`)
+- Brand Accent Active: `#d5176d`
 - Purple Accent: `#682fff`
 - Blue Accent: `#287eff`
 - Orange Accent: `#f8712b`
-- Divider: `rgba(255,255,255,0.08)`
-- Card Border: `rgba(255,255,255,0.04)`
-- Hover Border: `rgba(255,255,255,0.16)`
+- Divider: `rgba(19,21,23,0.08)`
+- Hover Border: `rgba(19,21,23,0.16)`
 - Standard Radius: 8px
 - Card Radius: 12px
 - Panel Radius: 24px
 
 ### Example Component Prompts
-- "Create a Luma-style landing hero on `#131517`: left-aligned 64px Inter/system headline at weight 500, white text, final phrase clipped to the Luma radial rainbow gradient, 20px secondary body copy in `rgba(255,255,255,0.79)`, and a white 52px CTA button with 8px radius. Place a large phone/event mockup on the right."
+- "Create a Luma-style light landing hero on `#ffffff`: left-aligned 64px Inter/system headline at weight 500, primary ink text, final phrase clipped to the Luma radial rainbow gradient, 20px secondary body copy in `rgba(19,21,23,0.64)`, and a black 52px CTA button with 8px radius. Place a large phone/event mockup on the right."
 - "Design a Discover Events section: centered 820px container, 32px weight-600 page title, secondary description, then a 2-column event row grid. Each row has an 80px square cover image with 8px radius, 14px muted time, 16px weight-500 title, optional location in tertiary text, and faint dividers offset after the image."
-- "Build category tiles on dark background: `#212325` surface, `1px solid rgba(255,255,255,0.04)`, 12px radius, 16px padding, colorful 40px icon, 16px weight-500 label, and 13px tertiary event count. Hover border becomes `rgba(255,255,255,0.16)`."
-- "Create a Luma pricing card: `#212325` background, 12px radius, faint border, 24px padding. Plan title at 18px weight 600, price at 40px weight 400, CTA full-width. Use white CTA for Free and cranberry `#f31a7c` CTA for Plus. Feature rows use small white check icons and 15px text."
-- "Design a sign-in panel: centered 460px dark card, 24px radius, `1px solid rgba(255,255,255,0.16)`, 32px padding, circular gray icon well, 28px weight-600 title, dark input with subtle border, full-width white primary button, and dark secondary OAuth buttons."
-- "Create a global nav: transparent/sticky top bar with `blur(16px)`, Luma star/wordmark left, local time and Explore Events link right, then a dark translucent Sign In pill. Text is 14px weight 500 in tertiary color, white on hover."
+- "Build category tiles on a light background: `#ffffff` surface, `1px solid rgba(19,21,23,0.08)`, 12px radius, 16px padding, colorful 40px icon, 16px weight-500 label, and 13px tertiary event count. Hover border becomes `rgba(19,21,23,0.16)`."
+- "Create a Luma pricing card: white/translucent white background, 12px radius, faint black-opacity border, 24px padding. Plan title at 18px weight 600, price at 40px weight 400, CTA full-width. Use black CTA for Free and cranberry `#f31a7c` CTA for Plus. Feature rows use small check icons and 15px text."
+- "Design a sign-in panel: centered 460px light card, 24px radius, `1px solid rgba(19,21,23,0.08)`, 32px padding, circular soft-gray icon well, 28px weight-600 title, light input with subtle border, full-width black primary button, and light secondary OAuth buttons."
+- "Create a global nav: transparent/sticky top bar with optional translucent white blur, Luma star/wordmark left, local time and Explore Events link right, then a rounded Sign In pill. Text is 14px weight 500 in secondary/tertiary color, primary ink on hover."
 
 ### Iteration Guide
-1. Check the canvas first: if it is not near-black (`#131517`), the public Luma feeling is probably gone.
+1. Check the canvas first: if it is not primarily white or very light gray, the light-theme Luma feeling is probably gone.
 2. Reduce typography weight before changing size. Most UI should sit at 500, with 600 only for section titles.
-3. Make CTAs either white or cranberry. If a CTA is blue/purple/orange, it probably looks off-brand unless it is part of a gradient moment.
+3. Make CTAs either black or cranberry. If a CTA is blue/purple/orange, it probably looks off-brand unless it is part of a gradient moment.
 4. Replace decorative graphics with event covers, avatars, category icons, or product screenshots.
-5. Keep borders faint. If a card outline is clearly visible at first glance, lower it toward `rgba(255,255,255,0.04-0.08)`.
+5. Keep borders faint. If a card outline is clearly visible at first glance, lower it toward `rgba(19,21,23,0.08)`.
 6. Clamp event and calendar text to 2 lines and preserve square imagery.
 7. Use horizontal scrolling for mobile discovery sections instead of collapsing everything into a long single list.
+
+### Dark Theme Fallback
+- Dark mode can invert the canvas to `#131517`, cards to `#212325`, and text to `#ffffff` / `rgba(255,255,255,0.79)`.
+- Keep the same component geometry, spacing, typography, and interaction model when switching themes.
 
 ### Known Gaps
 - `https://luma.com/home` redirects to sign-in for unauthenticated visitors, so authenticated home/product dashboard rules are inferred from public Luma surfaces, the sign-in screen, discover, pricing, and shared CSS tokens.
