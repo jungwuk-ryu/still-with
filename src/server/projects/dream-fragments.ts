@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { getDatabase, getProjectRecord, type DatabaseClient } from "@/server/db";
 import {
   getSceneClusterRecord,
-  getUploadedImagesByIds
+  getUploadedImagesByIds,
+  listUploadedImagesForProject
 } from "@/server/assets/world-assets";
 import { createGenerationJob } from "@/server/jobs/repository";
 
@@ -57,7 +58,7 @@ export function ensureDreamFragmentsForSpace(
   }
 
   const sourceImageIds = getDreamFragmentSourceImageIds(sceneCluster);
-  const uploadedImages = getUploadedImagesByIds(projectId, sourceImageIds, db);
+  const uploadedImages = getDreamFragmentSourceImages(projectId, sourceImageIds, db);
   const now = new Date().toISOString();
   const insert = db.prepare(
     `INSERT OR IGNORE INTO dream_fragments (
@@ -212,6 +213,22 @@ function getDreamFragmentSourceImageIds(sceneCluster: {
       ...sceneCluster.sourceImageIds
     ])
   ].slice(0, MAX_DREAM_FRAGMENTS);
+}
+
+function getDreamFragmentSourceImages(
+  projectId: string,
+  sourceImageIds: string[],
+  db: DatabaseClient
+) {
+  if (sourceImageIds.length === 0) {
+    return listUploadedImagesForProject(projectId, db).slice(0, MAX_DREAM_FRAGMENTS);
+  }
+
+  const uploadedImages = getUploadedImagesByIds(projectId, sourceImageIds, db);
+
+  return uploadedImages.length > 0
+    ? uploadedImages
+    : listUploadedImagesForProject(projectId, db).slice(0, MAX_DREAM_FRAGMENTS);
 }
 
 function hasActiveDreamFragmentJob(
