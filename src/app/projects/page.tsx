@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { listPublicDreams } from "@/server/projects";
+import { BrandMark } from "@/components/brand/BrandMark";
 
 export const dynamic = "force-dynamic";
 
@@ -9,9 +10,7 @@ export default function PublicDreamsPage() {
   return (
     <main className="app-shell">
       <nav className="top-nav" aria-label="Primary">
-        <Link className="brand-mark" href="/">
-          Still With
-        </Link>
+        <BrandMark />
         <Link className="nav-pill" href="/">
           Create a dream
         </Link>

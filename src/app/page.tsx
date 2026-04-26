@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { UploadFlow } from "@/components/upload/UploadFlow";
+import { BrandMark } from "@/components/brand/BrandMark";
 
 export default function UploadPage() {
   return (
     <main className="app-shell">
       <nav className="top-nav" aria-label="Primary">
-        <Link className="brand-mark" href="/">
-          Still With
-        </Link>
+        <BrandMark />
         <div className="nav-actions">
           <Link className="nav-pill" href="/projects">
             Dreams
