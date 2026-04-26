@@ -235,7 +235,9 @@ export function UploadFlow() {
           appendFiles(event.dataTransfer.files);
         }}
       >
-        <span className="drop-zone-title">Choose photos</span>
+        <span className="drop-zone-title">
+          {photos.length > 0 ? "Add photos" : "Choose photos"}
+        </span>
         <span className="drop-zone-copy">
           Drag photos here or browse from your device.
         </span>

@@ -100,7 +100,30 @@ textarea {
 }
 
 .brand-mark {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.12ch;
+  text-decoration: none;
+  font-family: "Times New Roman", Georgia, "Times", serif;
+  font-size: 30px;
+  letter-spacing: -0.02em;
+  line-height: 1;
   color: var(--color-text);
+}
+
+.brand-mark-primary {
+  font-style: italic;
+  font-weight: 400;
+}
+
+.brand-mark-secondary {
+  font-size: 1.02em;
+  letter-spacing: -0.03em;
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
 }
 
 .nav-pill {
@@ -299,6 +322,20 @@ textarea {
     0 0 18px rgba(243, 26, 124, 0.1);
 }
 
+.upload-panel-has-photos .drop-zone::before {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 9999px;
+  color: #ffffff;
+  background: #131517;
+  box-shadow: 0 0 18px rgba(243, 26, 124, 0.18);
+  font-size: 20px;
+  line-height: 1;
+  content: "+";
+}
+
 .drop-zone-active {
   border-color: rgba(243, 26, 124, 0.42);
   background: rgba(255, 255, 255, 0.88);
@@ -314,8 +351,15 @@ textarea {
 }
 
 .upload-panel-has-photos .drop-zone-title {
-  font-size: 16px;
-  transform: translateY(2px);
+  border: 1px solid rgba(243, 26, 124, 0.18);
+  border-radius: 9999px;
+  padding: 8px 14px;
+  color: #f31a7c;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 0 18px rgba(243, 26, 124, 0.12);
+  font-size: 14px;
+  letter-spacing: 0.01em;
+  transform: translateY(0);
 }
 
 .drop-zone-copy {
