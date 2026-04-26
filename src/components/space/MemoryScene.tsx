@@ -45,7 +45,8 @@ export function MemoryScene({
   const cameraControls = useMemoryCamera();
   const [assetStatus, setAssetStatus] = useState("Preparing the room");
   const [assetTier, setAssetTier] = useState(manifest.world.tierHint);
-  const [loadProgress, setLoadProgress] = useState<number | null>(null);
+  const [, setLoadProgress] = useState<number | null>(null);
+  const [isRoomReady, setIsRoomReady] = useState(false);
   const [fps, setFps] = useState(0);
   const [debugVisible, setDebugVisible] = useState(false);
 
@@ -84,6 +85,7 @@ export function MemoryScene({
     const clock = new THREE.Clock();
     const lookAtTarget = new THREE.Vector3();
     const scene = new THREE.Scene();
+    const petScene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(
       manifest.world.initialCameraPose.fov ?? 48,
       1,
@@ -102,6 +104,13 @@ export function MemoryScene({
       profile,
       manifest.world.spzUrl
     );
+    const revealRoom = (status = "Room ready") => {
+      if (!disposed) {
+        setAssetStatus(status);
+        setLoadProgress(null);
+        setIsRoomReady(true);
+      }
+    };
     const frameStats = {
       frames: 0,
       lastSample: performance.now()
@@ -109,6 +118,7 @@ export function MemoryScene({
     let lastMotionSignature = "";
 
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.autoClear = false;
     renderer.setPixelRatio(getRendererPixelRatio(profile.devicePixelRatio));
     renderer.setClearColor(0xf5f9ff, 1);
 
@@ -122,13 +132,16 @@ export function MemoryScene({
       }
     });
 
-    const cleanupObjects = createMemoryEnvironment(
-      scene,
-      manifest.world.groundPlaneOffset
-    );
+    setIsRoomReady(false);
+
+    const cleanupObjects = createMemoryEnvironment(scene, {
+      groundPlaneOffset: manifest.world.groundPlaneOffset,
+      showDemoGround: manifest.world.source === "demo-stub"
+    });
     const billboard = createPetBillboard({
       ...manifest.pet.placement,
       videoUrl: manifest.pet.idleVideoUrl,
+      chromaKeyColor: manifest.pet.chromaKeyColor,
       posterUrl: manifest.pet.posterUrl
     });
     const contactShadow = createContactShadow(
@@ -137,11 +150,11 @@ export function MemoryScene({
     );
     contactShadow.position.set(
       manifest.pet.placement.position[0],
-      manifest.world.groundPlaneOffset + 0.012,
+      manifest.pet.placement.position[1] + 0.012,
       manifest.pet.placement.position[2] + 0.02
     );
-    scene.add(contactShadow);
-    scene.add(billboard.group);
+    petScene.add(contactShadow);
+    petScene.add(billboard.group);
 
     runtimeRef.current = {
       billboard,
@@ -162,11 +175,9 @@ export function MemoryScene({
     resize();
 
     if (selectedAsset.url && selectedAsset.tier === "pano") {
-      panoDispose = loadPanoBackdrop(scene, selectedAsset.url, () => {
-        if (!disposed) {
-          setAssetStatus("Room ready");
-        }
-      });
+      panoDispose = loadPanoBackdrop(scene, selectedAsset.url, () =>
+        revealRoom()
+      );
     } else if (selectedAsset.url) {
       void loadSparkSpz(renderer, scene, selectedAsset.url, setLoadProgress)
         .then((loaded) => {
@@ -176,9 +187,12 @@ export function MemoryScene({
           }
 
           sparkDispose = loaded.dispose;
-          loaded.mesh.position.set(0, manifest.world.groundPlaneOffset, -1.15);
-          loaded.mesh.scale.setScalar(manifest.world.source === "demo-stub" ? 0.48 : 1);
-          setAssetStatus("Room ready");
+          loaded.mesh.quaternion.set(1, 0, 0, 0);
+          loaded.mesh.position.set(0, manifest.world.groundPlaneOffset, -0.58);
+          loaded.mesh.scale.setScalar(
+            manifest.world.source === "demo-stub" ? 0.48 : 1.04
+          );
+          revealRoom();
         })
         .catch(() => {
           const fallbackPanoUrl =
@@ -188,11 +202,11 @@ export function MemoryScene({
             panoDispose = loadPanoBackdrop(scene, fallbackPanoUrl, () => {
               if (!disposed) {
                 setAssetTier("pano");
-                setAssetStatus("Room ready");
+                revealRoom();
               }
             });
           } else {
-            setAssetStatus("Using a soft preview");
+            revealRoom("Using a soft preview");
           }
 
           setLoadProgress(null);
@@ -200,7 +214,7 @@ export function MemoryScene({
     } else {
       queueMicrotask(() => {
         if (!disposed) {
-          setAssetStatus("Using a soft preview");
+          revealRoom("Using a soft preview");
         }
       });
     }
@@ -230,7 +244,10 @@ export function MemoryScene({
         delta
       );
       billboard.update(elapsed, active?.key ?? null, Math.max(motionAge, 0));
+      renderer.clear();
       renderer.render(scene, camera);
+      renderer.clearDepth();
+      renderer.render(petScene, camera);
 
       frameStats.frames += 1;
       const now = performance.now();
@@ -248,8 +265,8 @@ export function MemoryScene({
       sparkDispose?.();
       panoDispose?.();
       runtimeRef.current = null;
-      scene.remove(contactShadow);
-      scene.remove(billboard.group);
+      petScene.remove(contactShadow);
+      petScene.remove(billboard.group);
       billboard.dispose();
       contactShadow.geometry.dispose();
       contactShadow.material.map?.dispose();
@@ -262,17 +279,17 @@ export function MemoryScene({
   return (
     <section
       ref={containerRef}
-      className="memory-scene"
+      className={`memory-scene${isRoomReady ? " memory-scene-ready" : ""}`}
       aria-label="3D memory space"
       {...cameraControls.bind}
     >
       <canvas ref={canvasRef} className="memory-scene-canvas" />
-      <div className="space-loading-state" aria-live="polite">
-        <span>{assetStatus}</span>
-        {loadProgress !== null ? (
-          <span>{Math.round(loadProgress * 100)}%</span>
-        ) : null}
-      </div>
+      {!isRoomReady ? (
+        <div className="space-loading-state" aria-live="polite">
+          <span>Opening the memory space</span>
+          <small>{assetStatus}</small>
+        </div>
+      ) : null}
       <MemoryDebugOverlay
         visible={debugVisible}
         fps={fps}
@@ -286,7 +303,7 @@ export function MemoryScene({
 
 function createMemoryEnvironment(
   scene: THREE.Scene,
-  groundPlaneOffset: number
+  options: { groundPlaneOffset: number; showDemoGround: boolean }
 ): () => void {
   const objects: THREE.Object3D[] = [];
   const materials: THREE.Material[] = [];
@@ -299,60 +316,21 @@ function createMemoryEnvironment(
   scene.add(hemi, key, fill);
   objects.push(hemi, key, fill);
 
-  const groundMaterial = new THREE.MeshStandardMaterial({
-    color: 0xf7efe5,
-    roughness: 0.82,
-    metalness: 0.0
-  });
-  const groundGeometry = new THREE.CircleGeometry(10, 64);
-  const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.y = groundPlaneOffset;
-  scene.add(ground);
-  objects.push(ground);
-  materials.push(groundMaterial);
-  geometries.push(groundGeometry);
-
-  const ringMaterial = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.28,
-    depthWrite: false
-  });
-  const ringGeometry = new THREE.TorusGeometry(1.9, 0.012, 8, 96, Math.PI * 1.15);
-
-  for (let index = 0; index < 3; index += 1) {
-    const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-    ring.position.set(-0.32 + index * 0.36, 1.52 + index * 0.16, -2.8);
-    ring.rotation.set(Math.PI * 0.58, 0.12 - index * 0.12, Math.PI * 0.08);
-    scene.add(ring);
-    objects.push(ring);
+  if (options.showDemoGround) {
+    const groundMaterial = new THREE.MeshStandardMaterial({
+      color: 0xf7efe5,
+      roughness: 0.82,
+      metalness: 0.0
+    });
+    const groundGeometry = new THREE.CircleGeometry(10, 64);
+    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = options.groundPlaneOffset;
+    scene.add(ground);
+    objects.push(ground);
+    materials.push(groundMaterial);
+    geometries.push(groundGeometry);
   }
-
-  materials.push(ringMaterial);
-  geometries.push(ringGeometry);
-
-  const pearlMaterial = new THREE.MeshBasicMaterial({
-    color: 0xfff8ea,
-    transparent: true,
-    opacity: 0.62
-  });
-  const pearlGeometry = new THREE.SphereGeometry(0.04, 12, 12);
-
-  for (let index = 0; index < 18; index += 1) {
-    const pearl = new THREE.Mesh(pearlGeometry, pearlMaterial);
-    const angle = index * 0.88;
-    pearl.position.set(
-      Math.sin(angle) * (1.6 + (index % 4) * 0.18),
-      0.48 + ((index * 37) % 120) / 100,
-      -2.2 + Math.cos(angle) * 1.1
-    );
-    scene.add(pearl);
-    objects.push(pearl);
-  }
-
-  materials.push(pearlMaterial);
-  geometries.push(pearlGeometry);
 
   return () => {
     objects.forEach((object) => scene.remove(object));

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { MotionClip, PetRuntimeState } from "@/types";
 import {
   applyPlannedMotion,
+  fallbackAssistantMessage,
   inferMotionIntent,
   planMotionFromClips
 } from "./motion";
@@ -98,5 +99,12 @@ describe("motion intent planning", () => {
     expect(motion.clipId).toBeNull();
     expect(motion.toState).toBe("stand");
     expect(nextState.currentPose).toBe("stand");
+  });
+
+  it("returns action status copy instead of pet dialogue", () => {
+    expect(fallbackAssistantMessage("look_at_me")).toBe(
+      "Your pet turns gently toward you."
+    );
+    expect(fallbackAssistantMessage("look_at_me")).not.toContain("I'm");
   });
 });

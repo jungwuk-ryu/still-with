@@ -46,6 +46,16 @@ describe("experience manifest", () => {
     expect(manifest.pet.motionClips).toHaveLength(1);
     expect(manifest.pet.motionClips[0]?.petProfileId).toBe("pet-a");
     expect(manifest.pet.idleVideoUrl).toBe("/pet-a.mp4");
+    expect(manifest.world.initialCameraPose).toMatchObject({
+      position: [0, 1.22, 2.25],
+      target: [0, 0.86, -0.62]
+    });
+    expect(manifest.pet.placement).toMatchObject({
+      position: [0.08, 0.02, -0.98],
+      width: 1.36,
+      height: 1.78
+    });
+    expect(manifest.pet.chromaKeyColor).toBe("green");
   });
 
   it("issues chat and realtime tokens only for ready projects", async () => {

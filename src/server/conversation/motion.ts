@@ -15,11 +15,11 @@ const MOTION_PATTERNS: Array<[MotionIntentKey, RegExp]> = [
 ];
 
 const RESPONSE_BY_INTENT: Record<MotionIntentKey, string> = {
-  idle: "I'm here with you in this memory.",
-  look_at_me: "Let's stay here together for a moment.",
-  turn_around: "That little movement can hold so much of what you remember.",
-  sit: "We can let this moment become quiet and still.",
-  come_closer: "I'll keep this memory close with you."
+  idle: "A quiet idle movement plays.",
+  look_at_me: "Your pet turns gently toward you.",
+  turn_around: "Your pet turns softly in place.",
+  sit: "Your pet settles into a calm sit.",
+  come_closer: "Your pet takes a small step closer."
 };
 
 export function inferMotionIntent(message: string): MotionIntentKey {

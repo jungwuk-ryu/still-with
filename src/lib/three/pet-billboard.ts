@@ -6,6 +6,7 @@ export interface PetBillboardOptions {
   height: number;
   videoUrl: string | null;
   posterUrl: string | null;
+  chromaKeyColor?: "green" | "blue";
 }
 
 export interface PetBillboard {
@@ -26,17 +27,16 @@ export function createPetBillboard(options: PetBillboardOptions): PetBillboard {
   const fallbackTexture = new THREE.CanvasTexture(canvas);
   fallbackTexture.colorSpace = THREE.SRGBColorSpace;
 
-  const material = new THREE.MeshBasicMaterial({
-    map: fallbackTexture,
-    transparent: true,
-    depthWrite: false,
-    side: THREE.DoubleSide
-  });
+  const material = createChromaKeyMaterial(
+    fallbackTexture,
+    options.chromaKeyColor ?? "green"
+  );
   const mesh = new THREE.Mesh(
     new THREE.PlaneGeometry(options.width, options.height),
     material
   );
   mesh.position.y = options.height / 2;
+  mesh.renderOrder = 20;
   group.add(mesh);
 
   const video = document.createElement("video");
@@ -47,6 +47,98 @@ export function createPetBillboard(options: PetBillboardOptions): PetBillboard {
 
   let videoTexture: THREE.VideoTexture | null = null;
   let currentVideoUrl: string | null = null;
+  let currentSourceIsVideo = false;
+  let fallbackHasPoster = false;
+  let loadVersion = 0;
+
+  function setTexture(texture: THREE.Texture) {
+    material.uniforms.map.value = texture;
+    material.needsUpdate = true;
+  }
+
+  function drawPosterImage(image: HTMLImageElement) {
+    if (!context) {
+      return;
+    }
+
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    const scale = Math.min(
+      canvas.width / Math.max(image.naturalWidth, 1),
+      canvas.height / Math.max(image.naturalHeight, 1)
+    );
+    const width = image.naturalWidth * scale;
+    const height = image.naturalHeight * scale;
+    context.drawImage(
+      image,
+      (canvas.width - width) / 2,
+      canvas.height - height,
+      width,
+      height
+    );
+    fallbackTexture.needsUpdate = true;
+    fallbackHasPoster = true;
+    setTexture(fallbackTexture);
+  }
+
+  function loadPosterFallback(version: number) {
+    if (options.posterUrl) {
+      loadImageIntoFallback(options.posterUrl, version);
+    } else {
+      drawFallback(performance.now() / 1000);
+    }
+  }
+
+  function loadImageIntoFallback(imageUrl: string, version: number) {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.onload = () => {
+      if (version === loadVersion) {
+        drawPosterImage(image);
+      }
+    };
+    image.onerror = () => {
+      if (version === loadVersion) {
+        drawFallback(performance.now() / 1000);
+      }
+    };
+    image.src = imageUrl;
+  }
+
+  async function loadFallbackManifest(url: string, version: number) {
+    try {
+      const response = await fetch(url, { cache: "no-store" });
+      const manifest = (await response.json()) as {
+        stillImageUrl?: unknown;
+      };
+
+      if (version !== loadVersion) {
+        return;
+      }
+
+      if (typeof manifest.stillImageUrl === "string") {
+        loadImageIntoFallback(manifest.stillImageUrl, version);
+      } else {
+        drawFallback(performance.now() / 1000);
+      }
+    } catch {
+      if (version === loadVersion) {
+        drawFallback(performance.now() / 1000);
+      }
+    }
+  }
+
+  function resetVideoTexture() {
+    video.pause();
+    video.removeAttribute("src");
+    video.load();
+
+    if (videoTexture) {
+      videoTexture.dispose();
+      videoTexture = null;
+    }
+  }
+
+  setTexture(fallbackTexture);
 
   function drawFallback(timeSeconds: number) {
     if (!context) {
@@ -54,6 +146,7 @@ export function createPetBillboard(options: PetBillboardOptions): PetBillboard {
     }
 
     context.clearRect(0, 0, canvas.width, canvas.height);
+    fallbackHasPoster = false;
     const glow = context.createRadialGradient(128, 170, 24, 128, 190, 150);
     glow.addColorStop(0, "rgba(255,255,255,0.95)");
     glow.addColorStop(0.52, "rgba(246,226,196,0.78)");
@@ -93,41 +186,43 @@ export function createPetBillboard(options: PetBillboardOptions): PetBillboard {
 
   function setVideoUrl(url: string | null, loop = true) {
     if (currentVideoUrl === url) {
-      video.loop = loop;
-      video.currentTime = 0;
-      void video.play().catch(() => {
-        material.map = fallbackTexture;
-        material.needsUpdate = true;
-      });
+      if (currentSourceIsVideo) {
+        video.loop = loop;
+        video.currentTime = 0;
+        void video.play().catch(() => {
+          setTexture(fallbackTexture);
+        });
+      }
       return;
     }
 
     currentVideoUrl = url;
-    video.loop = loop;
-    video.pause();
-    video.removeAttribute("src");
-    video.load();
-
-    if (videoTexture) {
-      videoTexture.dispose();
-      videoTexture = null;
-    }
-
-    material.map = fallbackTexture;
+    currentSourceIsVideo = false;
+    loadVersion += 1;
+    const version = loadVersion;
+    resetVideoTexture();
+    setTexture(fallbackTexture);
+    loadPosterFallback(version);
 
     if (!url) {
-      material.needsUpdate = true;
       return;
     }
 
+    if (isFallbackManifestUrl(url)) {
+      void loadFallbackManifest(url, version);
+      return;
+    }
+
+    currentSourceIsVideo = true;
     video.src = url;
+    video.loop = loop;
     videoTexture = new THREE.VideoTexture(video);
     videoTexture.colorSpace = THREE.SRGBColorSpace;
-    material.map = videoTexture;
-    material.needsUpdate = true;
+    setTexture(videoTexture);
     void video.play().catch(() => {
-      material.map = fallbackTexture;
-      material.needsUpdate = true;
+      currentSourceIsVideo = false;
+      setTexture(fallbackTexture);
+      loadPosterFallback(version);
     });
   }
 
@@ -137,7 +232,9 @@ export function createPetBillboard(options: PetBillboardOptions): PetBillboard {
     group,
     setVideoUrl,
     update: (timeSeconds, motionKey, motionAge) => {
-      drawFallback(timeSeconds);
+      if (!currentVideoUrl && !fallbackHasPoster) {
+        drawFallback(timeSeconds);
+      }
 
       const sitScale = motionKey === "sit" ? 0.86 : 1;
       const closerOffset =
@@ -155,15 +252,65 @@ export function createPetBillboard(options: PetBillboardOptions): PetBillboard {
       group.scale.setScalar(sitScale);
     },
     dispose: () => {
-      video.pause();
-      video.removeAttribute("src");
-      video.load();
+      resetVideoTexture();
       fallbackTexture.dispose();
-      videoTexture?.dispose();
       material.dispose();
       mesh.geometry.dispose();
     }
   };
+}
+
+function createChromaKeyMaterial(
+  texture: THREE.Texture,
+  chromaKeyColor: "green" | "blue"
+): THREE.ShaderMaterial {
+  const keyColor =
+    chromaKeyColor === "blue"
+      ? new THREE.Vector3(0, 0.28, 1)
+      : new THREE.Vector3(0, 1, 0);
+
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      map: { value: texture },
+      keyColor: { value: keyColor },
+      similarity: { value: chromaKeyColor === "blue" ? 0.32 : 0.34 },
+      smoothness: { value: 0.08 },
+      spill: { value: chromaKeyColor === "blue" ? 0.1 : 0.12 }
+    },
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    vertexShader: `
+      varying vec2 vUv;
+
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D map;
+      uniform vec3 keyColor;
+      uniform float similarity;
+      uniform float smoothness;
+      uniform float spill;
+      varying vec2 vUv;
+
+      void main() {
+        vec4 color = texture2D(map, vUv);
+        float distanceToKey = distance(color.rgb, keyColor);
+        float alpha = smoothstep(similarity, similarity + smoothness, distanceToKey);
+        float spillAmount = max(keyColor.g > keyColor.b ? color.g - max(color.r, color.b) : color.b - max(color.r, color.g), 0.0);
+        color.rgb -= keyColor * spillAmount * spill;
+        gl_FragColor = vec4(max(color.rgb, vec3(0.0)), color.a * alpha);
+      }
+    `
+  });
+}
+
+function isFallbackManifestUrl(url: string): boolean {
+  return /\/pet\/fallback\/[^/?]+\.json(?:[?#].*)?$/.test(url);
 }
 
 export function createContactShadow(
@@ -188,10 +335,12 @@ export function createContactShadow(
   const material = new THREE.MeshBasicMaterial({
     map: texture,
     transparent: true,
+    depthTest: false,
     depthWrite: false
   });
   const shadow = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), material);
   shadow.rotation.x = -Math.PI / 2;
+  shadow.renderOrder = 10;
 
   return shadow;
 }

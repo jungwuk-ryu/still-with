@@ -92,9 +92,9 @@ interface PetRuntimeStateRow {
 }
 
 const DEFAULT_CAMERA_POSE: CameraPose = {
-  position: [0, 1.28, 4.8],
-  target: [0, 1.0, -0.6],
-  fov: 48
+  position: [0, 1.22, 2.25],
+  target: [0, 0.86, -0.62],
+  fov: 46
 };
 
 export function getExperienceManifest(
@@ -144,7 +144,7 @@ export function getExperienceManifest(
       panoUrl: worldAsset?.panoUrl ?? null,
       thumbnailUrl: worldAsset?.thumbnailUrl ?? null,
       groundPlaneOffset: worldAsset?.groundPlaneOffset ?? 0,
-      initialCameraPose: worldAsset?.initialCameraPose ?? DEFAULT_CAMERA_POSE,
+      initialCameraPose: DEFAULT_CAMERA_POSE,
       source: worldAsset ? "database" : "demo-stub"
     },
     pet: {
@@ -157,10 +157,11 @@ export function getExperienceManifest(
         idleClip?.rawVideoUrl ??
         null,
       posterUrl,
+      chromaKeyColor: getPetChromaKeyColor(idleClip, motionClips),
       placement: {
-        position: [0.18, 0.02 + (worldAsset?.groundPlaneOffset ?? 0), -1.38],
-        width: 1.05,
-        height: 1.38
+        position: [0.08, 0.02, -0.98],
+        width: 1.36,
+        height: 1.78
       }
     },
     audio,
@@ -217,6 +218,18 @@ function isMotionIntentKey(value: string): value is MotionIntentKey {
     value === "sit" ||
     value === "come_closer"
   );
+}
+
+function getPetChromaKeyColor(
+  idleClip: MotionClip | undefined,
+  motionClips: readonly MotionClip[]
+): "green" | "blue" {
+  const keyColor =
+    idleClip?.postprocess?.chromaKeyColor ??
+    motionClips.find((clip) => clip.postprocess?.chromaKeyColor)?.postprocess
+      ?.chromaKeyColor;
+
+  return keyColor === "blue" ? "blue" : "green";
 }
 
 export function updatePetRuntimeState(

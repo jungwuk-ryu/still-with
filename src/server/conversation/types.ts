@@ -31,6 +31,7 @@ export interface ExperiencePetManifest {
   runtimeState: PetRuntimeState;
   idleVideoUrl: string | null;
   posterUrl: string | null;
+  chromaKeyColor: "green" | "blue";
   placement: PetBillboardPlacement;
 }
 

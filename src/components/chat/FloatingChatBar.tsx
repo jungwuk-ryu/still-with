@@ -21,10 +21,7 @@ export function FloatingChatBar({
   onConversationTurn
 }: FloatingChatBarProps) {
   const [message, setMessage] = useState("");
-  const [status, setStatus] = useState("Ready.");
-  const [assistantLine, setAssistantLine] = useState(
-    "I'm here with you in this memory."
-  );
+  const [status, setStatus] = useState("Ready for a gentle cue.");
   const [isSending, setIsSending] = useState(false);
   const [currentChatAccessToken, setCurrentChatAccessToken] =
     useState(chatAccessToken);
@@ -37,7 +34,7 @@ export function FloatingChatBar({
     }
 
     setIsSending(true);
-    setStatus("Thinking...");
+    setStatus("Noticing your words...");
 
     try {
       const response = await fetch(`/api/projects/${projectId}/chat`, {
@@ -64,9 +61,12 @@ export function FloatingChatBar({
         throw new Error(result.error || "The message could not be sent.");
       }
 
-      setAssistantLine(result.assistantMessage);
       setCurrentChatAccessToken(result.nextChatAccessToken);
-      setStatus(result.motion.clipId ? "Moving gently." : "Staying close.");
+      setStatus(
+        result.motion.clipId
+          ? "Your pet is responding with a gentle movement."
+          : "Your pet is staying close."
+      );
       onConversationTurn(result);
     } catch (error) {
       setStatus(
@@ -88,13 +88,10 @@ export function FloatingChatBar({
 
   return (
     <div className="experience-chat-shell">
-      <p className="chat-response" aria-live="polite">
-        {assistantLine}
-      </p>
       <form className="floating-chat" aria-label="Message input" onSubmit={handleSubmit}>
         <input
           value={message}
-          placeholder="Say something gentle..."
+          placeholder="Say something, or ask for a movement..."
           aria-label="Message"
           onChange={(event) => setMessage(event.target.value)}
         />
