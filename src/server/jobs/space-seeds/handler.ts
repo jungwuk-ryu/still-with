@@ -160,7 +160,7 @@ export function createSpaceSeedHandler(
                 sceneClusterId: sceneCluster.id,
                 inputMode: worldLabsInputModeForStrategy(plan.strategy),
                 textPrompt: plan.worldPrompt,
-                backgroundSpace: payload.backgroundSpace,
+                ...(payload.backgroundSpace ? { backgroundSpace: true } : {}),
                 seedImages: generatedSeeds.map((seed) => ({
                   url: seed.url,
                   view: seed.view,

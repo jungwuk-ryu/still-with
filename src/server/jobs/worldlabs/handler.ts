@@ -4,6 +4,7 @@ import { createGenerationJob } from "@/server/jobs/repository";
 import type { GenerationJobHandler } from "@/server/jobs/worker";
 import type { DatabaseClient } from "@/server/db";
 import {
+  enqueueElevenLabsAudioJob,
   markProjectReadyIfAssetsComplete,
   updateProjectToStage
 } from "@/server/projects/pipeline";
@@ -31,6 +32,7 @@ interface WorldLabsGenerationPayload {
   pollAttempt?: number;
   inputMode?: "multi-image" | "panorama" | "single-image";
   textPrompt?: string;
+  backgroundSpace?: boolean;
   seedImages?: Array<{
     url: string;
     view?: "front" | "left" | "right" | "back" | "panorama";
@@ -64,17 +66,19 @@ export function createWorldLabsGenerationHandler(
       (sceneCluster.status === "failed" ? null : sceneCluster.worldLabsOperationId);
 
     if (!operationId) {
-      const stage = getLoadingStage(3);
-      updateProjectToStage(
-        job.projectId,
-        {
-          status: "preparing_space",
-          currentStage: stage.title,
-          currentStepIndex: stage.index,
-          debugProgressPercent: 48
-        },
-        options.db
-      );
+      if (!payload.backgroundSpace) {
+        const stage = getLoadingStage(3);
+        updateProjectToStage(
+          job.projectId,
+          {
+            status: "preparing_space",
+            currentStage: stage.title,
+            currentStepIndex: stage.index,
+            debugProgressPercent: 48
+          },
+          options.db
+        );
+      }
       let operation;
 
       try {
@@ -290,7 +294,13 @@ export function createWorldLabsGenerationHandler(
       },
       options.db
     );
-    markProjectReadyIfAssetsComplete(job.projectId, options.db);
+    if (payload.backgroundSpace) {
+      enqueueElevenLabsAudioJob(job.projectId, options.db, {
+        sceneClusterId: sceneCluster.id
+      });
+    } else {
+      markProjectReadyIfAssetsComplete(job.projectId, options.db);
+    }
 
     return {
       sceneClusterId: sceneCluster.id,
@@ -345,6 +355,10 @@ function buildPollPayload(input: {
 
   if (input.sourcePayload.textPrompt) {
     payload.textPrompt = input.sourcePayload.textPrompt;
+  }
+
+  if (input.sourcePayload.backgroundSpace) {
+    payload.backgroundSpace = true;
   }
 
   if (input.sourcePayload.seedImages) {
@@ -434,6 +448,7 @@ function parsePayload(payload: JsonValue): WorldLabsGenerationPayload {
       typeof record.pollAttempt === "number" ? record.pollAttempt : undefined,
     inputMode: isInputMode(record.inputMode) ? record.inputMode : undefined,
     textPrompt: typeof record.textPrompt === "string" ? record.textPrompt : undefined,
+    backgroundSpace: record.backgroundSpace === true,
     seedImages: parseSeedImages(record.seedImages)
   };
 }

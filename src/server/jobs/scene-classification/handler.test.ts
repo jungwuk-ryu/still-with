@@ -9,6 +9,7 @@ import {
   type DatabaseClient
 } from "@/server/db";
 import { createGenerationJob } from "@/server/jobs/repository";
+import { createSceneClusterRecord } from "@/server/assets/world-assets";
 import type { SceneClassifier } from "@/ai/scene";
 import type { ClassifiedSceneCluster } from "@/ai/scene/types";
 import { createSceneClassificationHandler } from "./handler";
@@ -110,6 +111,54 @@ describe("scene classification handler", () => {
     await expect(handler(job)).resolves.toMatchObject({
       sceneClusterId: "scene-1",
       reusedExistingCluster: true
+    });
+  });
+
+  it("keeps a ready project enterable during background space classification", async () => {
+    db = await createTestDatabase();
+    const project = createProjectRecord({}, db);
+    insertUploadedImage(db, project.id, "image-1", 0);
+    createSceneClusterRecord(
+      {
+        projectId: project.id,
+        label: "Living room",
+        sourceImageIds: ["image-1"],
+        representativeImageIds: ["image-1"],
+        spatialPrompt: "Existing prompt",
+        seedImageUrls: ["/api/storage/seed.png"],
+        seedPromptVersion: "space-reconstruction-v1",
+        worldLabsOperationId: "operation-1",
+        worldId: "world-1",
+        status: "ready"
+      },
+      db
+    );
+    markProjectReady(db, project.id);
+    const handler = createSceneClassificationHandler({
+      db,
+      classifier: createClassifier(classifiedCluster()),
+      enqueueNextJob: false
+    });
+    const job = createGenerationJob(
+      {
+        projectId: project.id,
+        type: "scene-classification",
+        payload: {
+          backgroundSpaces: true
+        },
+        maxAttempts: 1
+      },
+      db
+    );
+
+    await expect(handler(job)).resolves.toMatchObject({
+      label: "Living room"
+    });
+    expect(getProjectRecord(project.id, db)).toMatchObject({
+      status: "ready",
+      currentStage: "The door is open",
+      currentStepIndex: 6,
+      debugProgressPercent: 100
     });
   });
 
@@ -256,6 +305,18 @@ function classifiedCluster(): ClassifiedSceneCluster {
     seedStrategy: "generated-multiview",
     confidence: 0.82
   };
+}
+
+function markProjectReady(db: DatabaseClient, projectId: string): void {
+  db.prepare(
+    `UPDATE projects
+     SET status = 'ready',
+         current_stage = 'The door is open',
+         current_step_index = 6,
+         debug_progress_percent = 100,
+         completed_at = '2026-04-26T00:00:00.000Z'
+     WHERE id = ?`
+  ).run(projectId);
 }
 
 function insertUploadedImage(

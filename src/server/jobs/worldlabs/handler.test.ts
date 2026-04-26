@@ -2,7 +2,12 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createProjectRecord, openDatabase, type DatabaseClient } from "@/server/db";
+import {
+  createProjectRecord,
+  getProjectRecord,
+  openDatabase,
+  type DatabaseClient
+} from "@/server/db";
 import { createGenerationJob } from "@/server/jobs/repository";
 import {
   createSceneClusterRecord,
@@ -85,6 +90,59 @@ describe("worldlabs generation handler", () => {
       sceneClusterId,
       operationId: "operation-1",
       pollAttempt: 1
+    });
+  });
+
+  it("keeps a ready project enterable when creating a background space world", async () => {
+    db = await createTestDatabase();
+    const { projectId, sceneClusterId } = createProjectScene(db);
+    markProjectReady(db, projectId);
+    const provider = createProviderStub({
+      async createWorld() {
+        return operation("background-operation-1", "running", "background-world-1");
+      }
+    });
+    const handler = createWorldLabsGenerationHandler({
+      db,
+      provider,
+      initialPollDelayMs: 0
+    });
+    const job = createGenerationJob(
+      {
+        projectId,
+        type: "worldlabs-generation",
+        payload: {
+          sceneClusterId,
+          backgroundSpace: true,
+          seedImages: [
+            { url: "/api/storage/projects/project/space-seeds/front.png", view: "front" }
+          ],
+          inputMode: "multi-image"
+        }
+      },
+      db
+    );
+
+    await expect(handler(job)).resolves.toMatchObject({
+      operationId: "background-operation-1",
+      nextPollInMs: 0
+    });
+    expect(getProjectRecord(projectId, db)).toMatchObject({
+      status: "ready",
+      currentStage: "The door is open",
+      currentStepIndex: 6,
+      debugProgressPercent: 100
+    });
+    const pollJob = db
+      .prepare(
+        "SELECT payload_json FROM generation_jobs WHERE type = 'worldlabs-generation' AND id != ?"
+      )
+      .get(job.id) as { payload_json: string };
+    expect(JSON.parse(pollJob.payload_json)).toMatchObject({
+      sceneClusterId,
+      operationId: "background-operation-1",
+      pollAttempt: 1,
+      backgroundSpace: true
     });
   });
 
@@ -852,6 +910,18 @@ function createProjectScene(
     projectId: project.id,
     sceneClusterId: sceneCluster.id
   };
+}
+
+function markProjectReady(db: DatabaseClient, projectId: string): void {
+  db.prepare(
+    `UPDATE projects
+     SET status = 'ready',
+         current_stage = 'The door is open',
+         current_step_index = 6,
+         debug_progress_percent = 100,
+         completed_at = '2026-04-26T00:00:00.000Z'
+     WHERE id = ?`
+  ).run(projectId);
 }
 
 function createProviderStub(
