@@ -108,6 +108,6 @@ export function getResendApiKey(): string | null {
 export function getResendFromEmail(): string {
   return (
     process.env.RESEND_FROM_EMAIL?.trim() ||
-    "Still With <notifications@stillwith.local>"
+    "Still With <onboarding@resend.dev>"
   );
 }

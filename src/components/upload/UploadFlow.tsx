@@ -44,6 +44,8 @@ export function UploadFlow() {
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [petName, setPetName] = useState("");
+  const [isPublicDream, setIsPublicDream] = useState(false);
 
   useEffect(() => {
     photosRef.current = photos;
@@ -111,6 +113,13 @@ export function UploadFlow() {
   }
 
   async function submitPhotos() {
+    const normalizedPetName = petName.trim().replace(/\s+/g, " ");
+
+    if (!normalizedPetName) {
+      setError("Add your pet's name to begin.");
+      return;
+    }
+
     if (photos.length === 0) {
       setError("Choose at least one photo to begin.");
       return;
@@ -120,6 +129,11 @@ export function UploadFlow() {
     setError(null);
 
     const formData = new FormData();
+    formData.append("petName", normalizedPetName);
+
+    if (isPublicDream) {
+      formData.append("isPublic", "on");
+    }
 
     for (const photo of photos) {
       formData.append("photos", photo.file);
@@ -153,12 +167,56 @@ export function UploadFlow() {
 
   return (
     <form
-      className="upload-panel"
+      className={
+        photos.length > 0
+          ? "upload-panel upload-panel-has-photos"
+          : "upload-panel"
+      }
       onSubmit={(event) => {
         event.preventDefault();
         void submitPhotos();
       }}
     >
+      <section className="dream-settings" aria-labelledby="dream-settings-title">
+        <div>
+          <p className="eyebrow" id="dream-settings-title">
+            Dream settings
+          </p>
+          <label className="field-label" htmlFor="pet-name">
+            Pet name
+          </label>
+          <input
+            id="pet-name"
+            className="text-input"
+            name="petName"
+            type="text"
+            autoComplete="off"
+            maxLength={80}
+            placeholder="Mochi"
+            value={petName}
+            disabled={isSubmitting}
+            onChange={(event) => {
+              setPetName(event.target.value);
+              setError(null);
+            }}
+          />
+        </div>
+
+        <label className="toggle-row">
+          <input
+            type="checkbox"
+            name="isPublic"
+            checked={isPublicDream}
+            disabled={isSubmitting}
+            onChange={(event) => setIsPublicDream(event.target.checked)}
+          />
+          <span>
+            <strong>Show this dream in public Dreams</strong>
+            <small>Only after it is ready.</small>
+          </span>
+        </label>
+      </section>
+
       <label
         className={isDragging ? "drop-zone drop-zone-active" : "drop-zone"}
         htmlFor="photo-upload"
@@ -251,7 +309,7 @@ export function UploadFlow() {
       <div className="upload-actions">
         <div className="upload-notes">
           <p className="privacy-line">
-            Your photos stay private while this memory is prepared.
+            Your photos stay private unless you choose to share the finished dream.
           </p>
           {warning ? <p className="form-warning">{warning}</p> : null}
           {error ? <p className="form-error">{error}</p> : null}
@@ -259,7 +317,7 @@ export function UploadFlow() {
         <button
           className="button button-primary"
           type="submit"
-          disabled={photos.length === 0 || isSubmitting}
+          disabled={photos.length === 0 || petName.trim().length === 0 || isSubmitting}
         >
           {isSubmitting ? "Preparing..." : "Begin"}
         </button>
