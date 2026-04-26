@@ -33,10 +33,10 @@ const LIMITS = {
   depth: 0.7
 };
 
-const SAFE_ROOM_CAMERA_Z = 1.72;
+const SAFE_ROOM_CAMERA_Z = 0.42;
 const SAFE_ROOM_CAMERA_X_WEIGHT = 0.18;
-const MIN_CAMERA_RADIUS = 1.9;
-const MAX_CAMERA_RADIUS = 3.1;
+const MIN_CAMERA_RADIUS = 0.92;
+const MAX_CAMERA_RADIUS = 2.05;
 
 const ZERO_STATE: CameraControlState = {
   yaw: 0,
@@ -212,7 +212,7 @@ function getPetAwarePose(
   const target: [number, number, number] = [
     clamp(petFocus[0], -0.46, 0.46),
     petFocus[1],
-    clamp(petFocus[2], -0.72, 0.42)
+    clamp(petFocus[2], -0.78, -0.34)
   ];
 
   return {
