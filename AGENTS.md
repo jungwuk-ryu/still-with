@@ -33,14 +33,18 @@ Run `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` before 
 - Do not broaden feature scope during integration. Fix glue, contracts, tests, and demo-safe fallbacks.
 - User-facing web UI copy must remain English.
 
-## Required Direct Verification For Code Changes
+## Required Review And Direct Verification For Code Changes
 
-For any code-changing integration task, do not use reviewer subagents before final handoff. The integration owner must personally review and verify the current result from both perspectives:
+For any code-changing integration task, request review from no more than one reviewer subagent before final handoff. Pick the single reviewer role that best matches the riskiest part of the change, such as product/UX/safety, technical reliability, accessibility, or security. Do not spawn multiple reviewer subagents for the same task.
+
+The integration owner remains accountable and must personally review and verify the current result from both perspectives:
 
 1. Product correctness, UX, emotional safety, accessibility, and English copy.
 2. Technical architecture, shared contracts, provider/storage/db/job flow, security, reliability, and tests.
 
-Document any `blocker` findings, fix every blocker, rerun the relevant validation, and repeat the direct review and test loop until zero blockers remain. Do not hand off code-changing integration work without listing the commands or manual checks performed and any remaining non-blocking risks.
+Security review should be proportional to a hackathon MVP: block secrets exposure, private data leaks, auth bypasses, unsafe provider usage, and destructive behavior, but do not block handoff on production-hardening items that are out of MVP scope.
+
+Document any `blocker` findings from the reviewer or direct review, fix every blocker, rerun the relevant validation, and repeat the review and test loop until zero blockers remain. Do not hand off code-changing integration work without listing the reviewer used, commands or manual checks performed, and any remaining non-blocking risks.
 
 ## Integration Workflow
 
