@@ -1,0 +1,43 @@
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, "Apple Color Emoji", Inter,
+    Roboto, "Segoe UI", "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --font-mono: "SF Mono", Menlo, Monaco, Consolas, "Courier New", Courier,
+    monospace;
+
+  --color-bg: #131517;
+  --color-surface: #212325;
+  --color-panel: #333537;
+  --color-hover: #535557;
+  --color-text: #ffffff;
+  --color-text-soft: rgba(255, 255, 255, 0.79);
+  --color-text-muted: rgba(255, 255, 255, 0.5);
+  --color-text-faint: rgba(255, 255, 255, 0.32);
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-faint: rgba(255, 255, 255, 0.04);
+  --color-border-strong: rgba(255, 255, 255, 0.16);
+  --color-cranberry: #f31a7c;
+  --color-cranberry-soft: #f98dbe;
+  --color-violet: #b596ff;
+  --color-sky: #76adff;
+  --color-gold: #f2ca77;
+  --color-warm: #fba67a;
+
+  --gradient-rainbow: radial-gradient(
+    circle at 0 0,
+    #099ef1 0%,
+    #6863f8 18.82%,
+    #d84ffa 32.6%,
+    #f058c5 52.83%,
+    #ff4f90 68.03%,
+    #ff6558 87.66%,
+    #ff891f 100%
+  );
+
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-panel: 24px;
+
+  --shadow-floating: 0 2px 3px rgba(0, 0, 0, 0.25),
+    0 4px 7px rgba(0, 0, 0, 0.3), 0 8px 14px rgba(0, 0, 0, 0.35),
+    0 17px 29px rgba(0, 0, 0, 0.4);
+}
